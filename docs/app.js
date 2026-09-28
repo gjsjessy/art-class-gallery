@@ -727,7 +727,7 @@
   // Modals
   // ------------------------------------------------------------------
   function modal(html, { wide } = {}) {
-    closeModal();
+    closeModal(false);
     const o = document.createElement("div");
     o.className = "overlay"; o.id = "overlay";
     o.innerHTML = `<div class="modal" role="dialog" aria-modal="true" ${wide ? 'style="max-width:620px"' : ""}>${html}</div>`;
@@ -738,7 +738,13 @@
     o.querySelector("input,select,textarea,button")?.focus();
     return o;
   }
-  function closeModal() { document.getElementById("overlay")?.remove(); }
+  // Closing any window redraws the page, so lists always show the latest changes.
+  function closeModal(redraw = true) {
+    const o = document.getElementById("overlay");
+    if (!o) return;
+    o.remove();
+    if (redraw && S.me) render();
+  }
   function showErr(o, sel, msg) { const e = o.querySelector(sel); e.textContent = msg; e.hidden = false; }
 
   // Fill a Login ID box from a name box, until the person edits the ID themselves.
@@ -1175,11 +1181,10 @@
       S.tagged.forEach((id) => { if (!S.students.some((s) => s.id === id)) S.tagged.delete(id); });
       if (!S.noteTouched) S.upNote = S.lessons[S.upDate] || "";
     } catch (x) { fail(x); }
-    if (!document.getElementById("overlay")) {
-      const searching = document.activeElement?.id === "kidSearch";
-      render();
-      if (searching) document.getElementById("kidSearch")?.focus();
-    }
+    // Redraw the page now (an open window stays on top and isn't affected).
+    const searching = document.activeElement?.id === "kidSearch";
+    render();
+    if (searching) document.getElementById("kidSearch")?.focus();
   }
 
   async function boot() {
