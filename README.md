@@ -1,110 +1,131 @@
 # Art Class Gallery
 
-A private photo gallery for an art class. It has three kinds of login:
+A private photo gallery for art class students and their parents, built for **Sasha & Lulu Atelier**.
 
-- **Parents**, one login per child. They see only their own child's photos, save them to their phone, and follow the child's level.
-- **Teachers** see the children, tag them in photos, upload during the lesson, and set levels. A teacher can be limited to one class (Young or Older).
-- **The admin** does everything a teacher can, plus adds and removes children and teachers and makes new login codes.
-
-Photos are removed automatically 3 months after the lesson.
-
-**How logging in works:** the admin adds a child, and the app creates a random **Login ID** and a **one-time code**. The parent logs in with these once and chooses their own **6-digit PIN**. Codes expire after 7 days. After 5 wrong tries, the login pauses for 15 minutes. Birthdays and easy PINs like 123456 are refused.
+Teachers upload photos during lessons and tag the children in them. Parents log in to view and save their own child's artwork, and to follow their progress through the studio's programme levels. Photos are removed automatically three months after each lesson.
 
 ---
 
-## What's in this folder
+## Features
 
-| Path | What it is |
+**For parents**
+- One login per child, using a Login ID and a 6-digit PIN
+- Photos grouped by lesson date, with the teacher's note on what was covered
+- Save a single photo or a whole lesson, straight to the phone's photo library
+- Current level and level history (Sparkle → Jumble → Plopping → Artsy → Starburst)
+- Advance notice before photos are removed
+
+**For teachers**
+- Tag one or more children, then take or choose photos and upload them
+- Photos are resized on the device before upload, which keeps uploads fast and storage small
+- Set and update each child's level
+- Browse and delete recent photos
+- Optionally limited to a single class (Young or Older)
+
+**For admins**
+- Add, edit and remove children and teachers
+- Generate one-time login codes, with a ready-to-send message for parents
+- Reset forgotten PINs, and turn logins off or on
+- Record photo consent for each child
+
+---
+
+## Privacy and security
+
+- **Private storage.** Photos are never publicly accessible. They load only through short-lived signed links, for signed-in users who are allowed to see them.
+- **Per-child access.** Database row-level security ensures parents only ever see their own child's photos. In group photos, a parent sees only their own child's name.
+- **Photo consent.** Children without recorded consent cannot be tagged in photos.
+- **One-time codes.** Codes are random, expire after 7 days, and work only once.
+- **PIN rules.** Easily guessed PINs, such as birthdays, repeated digits and number runs, are rejected.
+- **Lockout.** After 5 incorrect attempts, the login pauses for 15 minutes.
+- **Short retention.** Photos are deleted automatically after 90 days.
+- **No personal data in this repository.** Children's details and photos live only in the Supabase database.
+
+---
+
+## Tech stack
+
+| Part | Service |
 |---|---|
-| `docs/` | The app itself (GitHub Pages serves this folder) |
-| `docs/config.js` | **The only file you edit**: studio name, Supabase keys, classes, levels |
-| `supabase/schema.sql` | Database tables and privacy rules, pasted once into Supabase |
-| `supabase/functions/api/index.ts` | Server code for logins, adding people and cleanup, pasted once into Supabase |
-| `.github/workflows/daily-cleanup.yml` | Daily job that deletes old photos and keeps Supabase awake |
-
-While `supabaseUrl` in `config.js` is empty, the app runs as a **demo** with sample children, so you can open `docs/index.html` and click around first.
+| Web app | Static HTML, CSS and JavaScript, hosted on GitHub Pages |
+| Database, logins and photo storage | Supabase (free plan) |
+| Server logic | Supabase Edge Function for login, account management and cleanup |
+| Scheduled cleanup | GitHub Actions, run daily |
 
 ---
 
-## Setup (about 30 minutes, one time)
+## Project structure
 
-### 1. Create the Supabase project
-1. Sign up at [supabase.com](https://supabase.com). No card is needed.
-2. Click **New project**. Choose **Region: Southeast Asia (Singapore)** and save the database password somewhere safe.
-3. Wait about 2 minutes for it to finish setting up.
-
-### 2. Create the database
-1. In the left menu, open **SQL Editor** and click **New query**.
-2. Paste in everything from `supabase/schema.sql`, then click **Run**. You should see "Success. No rows returned".
-
-### 3. Add the server function
-1. Open **Edge Functions**, click **Deploy a new function**, then choose **Via Editor**.
-2. Name it exactly **`api`**.
-3. Delete the sample code, paste in everything from `supabase/functions/api/index.ts`, and click **Deploy**.
-4. Open the function's **Details / Settings** and turn **"Verify JWT with legacy secret"** (or "Enforce JWT verification") **OFF**, then save. The function checks logins itself.
-5. Go to **Edge Functions → Secrets** and add two secrets. Each value should be a long random string (a password manager can generate one, or mash 40+ random letters and numbers):
-   - `PIN_PEPPER`: never change this after parents have set PINs, or every PIN stops working.
-   - `CRON_SECRET`: also your **setup key** in step 6.
-
-### 4. Tighten login settings
-1. Go to **Authentication → Sign In / Providers** and turn **"Allow new users to sign up" OFF**. Only the admin creates logins.
-2. Go to **Authentication → Rate Limits** and raise **"Sign-ups and sign-ins"** to about **150** per 5 minutes. Every login passes through the server function, so this stops busy pick-up times from hitting the limit.
-
-### 5. Put the app on GitHub Pages
-1. Create a new **public** repository on GitHub, for example `art-class-gallery`, and upload all the files in this folder.
-2. In Supabase, go to **Project Settings → API** (or **API Keys**) and copy the **Project URL** and the **anon / publishable key**. These are safe to make public; the privacy rules protect the data.
-3. On GitHub, edit `docs/config.js`: paste the two values into `supabaseUrl` and `supabaseKey`, and set `studioName`. Commit the change.
-4. Go to **Settings → Pages** and choose **Deploy from a branch**, branch **main**, folder **/docs**, then save. After a minute your link appears, for example `https://yourname.github.io/art-class-gallery/`.
-
-### 6. Create the admin login
-1. Open your link with **`#setup`** added to the end, for example `https://yourname.github.io/art-class-gallery/#setup`.
-2. Enter your name, a password, and the `CRON_SECRET` from step 3 as the setup key.
-3. **Write down the Login ID it shows.** You log in with that ID and your password.
-
-This only works once. After an admin exists, the setup page refuses.
-
-### 7. Turn on the daily cleanup
-1. On GitHub, go to **Settings → Secrets and variables → Actions** and add three **repository secrets**:
-   - `SUPABASE_URL`: the Project URL
-   - `SUPABASE_KEY`: the anon / publishable key
-   - `CRON_SECRET`: the same value as in Supabase
-2. Go to the **Actions** tab, open **Daily cleanup**, and click **Run workflow** to test it. It should finish with a green tick.
-
-From then on it runs every night at 3am. It deletes photos older than 3 months and keeps the free Supabase project from pausing.
+```
+docs/                        Web app, served by GitHub Pages
+  index.html
+  app.js
+  styles.css
+  config.js                  Studio settings and Supabase connection
+  logo.png
+supabase/
+  schema.sql                 Database tables, access rules and photo storage
+  functions/api/index.ts     Server function
+.github/workflows/
+  daily-cleanup.yml          Removes expired photos and keeps the project active
+tools/
+  build-demo.py              Builds a single-file demo with sample data
+```
 
 ---
 
-## Everyday use
+## Configuration
 
-**Adding a child (admin):** go to Students, click **Add child**, and fill in the name, date of birth, class and photo consent. A login slip appears. Use **Copy message** and send it to the parent privately, for example on WhatsApp.
+Settings are in `docs/config.js`:
 
-**During the lesson (teacher):** go to Add photos, tap the child or children in the photo, take or choose the photos, and click **Upload**. Photos are resized on the phone before uploading, so it's quick and uses little storage.
+| Setting | Purpose |
+|---|---|
+| `studioName`, `shortName`, `logo` | Branding shown in the app |
+| `supabaseUrl`, `supabaseKey` | Supabase Project URL and publishable key. These are safe to publish. |
+| `classes` | Class groups, e.g. Young and Older |
+| `levels` | Programme levels, in order |
+| `keepDays` | Days a photo is kept after its lesson (default 90) |
 
-**Group photos:** tag everyone in the photo. Each parent sees the photo, but only their own child's name.
+When `supabaseUrl` is empty, the app runs in demo mode with sample data.
 
-**No photo consent:** these children can't be tagged, so their photos never reach any parent.
+---
 
-**Forgotten PIN:** click **New code** next to the child. The old PIN stops working, and the parent uses the new code to choose a new PIN.
+## Setup
 
-**Limiting a teacher to one class:** go to Teachers and change "Sees all classes" to "Young class only" or "Older class only".
+### 1. Supabase
+1. Create a project in the **Southeast Asia (Singapore)** region.
+2. In **SQL Editor**, run the contents of `supabase/schema.sql`.
+3. In **Edge Functions**, create a function named `api` with the contents of `supabase/functions/api/index.ts`. Turn off **Verify JWT** for this function.
+4. Under **Edge Functions → Secrets**, add:
+   - `PIN_PEPPER`: a long random value. Do not change it once PINs are in use.
+   - `CRON_SECRET`: a long random value, also used as the setup key.
+5. Under **Authentication → Sign In / Providers**, turn off **Allow new users to sign up**.
+6. Under **Authentication → Rate Limits**, raise **Sign-ups and sign-ins** to around 150 per 5 minutes.
+
+### 2. GitHub Pages
+1. Add the Supabase Project URL and publishable key to `docs/config.js`.
+2. Under **Settings → Pages**, deploy from the `main` branch, `/docs` folder.
+
+### 3. First admin
+Open the site with `#setup` at the end of the address. Enter a name, a password, and the `CRON_SECRET` as the setup key. This works only once, while no admin exists.
+
+### 4. Daily cleanup
+Under **Settings → Secrets and variables → Actions**, add `SUPABASE_URL`, `SUPABASE_KEY` and `CRON_SECRET`. Then run **Daily cleanup** once from the **Actions** tab to confirm it works.
 
 ---
 
 ## Free plan limits
 
-- **1 GB photo storage.** A resized photo plus its preview is about 300 KB, so that's roughly 3,000 photos at a time. The 3-month cleanup keeps the total steady.
-- **Pausing** after 7 quiet days is prevented by the daily cleanup job.
-- No card on file, so there's no way to be charged. If a limit is ever hit, uploads stop working until space is freed.
+- **Storage.** The free plan includes 1 GB of storage. Each photo takes about 300 KB including its preview, so that's roughly 3,000 photos at a time. The 90-day cleanup keeps the total steady.
+- **Pausing.** Supabase pauses free projects after 7 days of inactivity. The daily cleanup job prevents this.
+- **Scheduled jobs.** GitHub switches off scheduled workflows in inactive repositories. The cleanup job makes a small commit each month to prevent this.
 
-To see storage use, go to Supabase → **Storage → photos**, or the **Usage** page.
-
-## Changing things later
-
-- **Class names or levels:** edit `classes` and `levels` in `docs/config.js`.
-- **How long photos are kept:** change `keepDays` in `config.js` **and** `KEEP_DAYS` at the top of the server function, then redeploy the function.
+---
 
 ## Troubleshooting
 
-- **"Server is missing PIN_PEPPER or CRON_SECRET":** add both secrets from step 3.5 and redeploy the function.
-- **Adding a child fails with an email error:** add a secret `LOGIN_EMAIL_DOMAIN` with the value `example.com` and redeploy. Behind the scenes, logins use made-up email addresses that never receive mail.
-- **Photos don't load after the phone was left open for hours:** refresh the page. Photo links expire after 1 hour for privacy.
+| Problem | Fix |
+|---|---|
+| "Server is missing PIN_PEPPER or CRON_SECRET" | Add both secrets to the Edge Function and redeploy it. |
+| Adding a child fails with an email error | Add the Edge Function secret `LOGIN_EMAIL_DOMAIN` = `example.com`. Logins use internal placeholder addresses that never receive email. |
+| Photos stop loading after a long time open | Refresh the page. Photo links expire after 1 hour. |
