@@ -1142,9 +1142,13 @@
       S.busy = false; render();
     }
     if (form === "setup") {
+      // read the fields before re-rendering (render clears them)
+      const name = document.getElementById("suName").value.trim();
+      const pw = document.getElementById("suPw").value;
+      const key = document.getElementById("suKey").value.trim();
       S.busy = true; S.error = ""; render();
       try {
-        const { me, loginId } = await api.bootstrap(document.getElementById("suName").value.trim(), document.getElementById("suPw").value, document.getElementById("suKey").value.trim());
+        const { me, loginId } = await api.bootstrap(name, pw, key);
         history.replaceState(null, "", location.pathname);
         await enter(me);
         modal(`<div class="modal-head"><h2>You're the admin</h2></div>
