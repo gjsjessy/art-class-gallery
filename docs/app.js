@@ -30,7 +30,7 @@
   const cleanId = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const suggestId = (name) => cleanId(String(name || "").trim().split(/\s+/)[0]).slice(0, 20);
   const initials = (name) => String(name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  const firstName = (name) => String(name || "").trim().split(/\s+/)[0];
+  const fullName = (name) => String(name || "").trim().replace(/\s+/g, " ");
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + "s"}`;
   const joinNames = (arr) => arr.length <= 1 ? (arr[0] || "") : `${arr.slice(0, -1).join(", ")} & ${arr[arr.length - 1]}`;
@@ -186,10 +186,14 @@
           onProgress?.(i + 1);
         }
       },
-      async deletePhoto(p) {
-        const { error } = await sb.storage.from("photos").remove([p.path, p.thumb_path]);
-        if (error) throw error;
-        must(await sb.from("photos").delete().eq("id", p.id));
+      async deletePhoto(p) { return this.deletePhotos([p]); },
+      async deletePhotos(list) {
+        for (let i = 0; i < list.length; i += 100) {
+          const chunk = list.slice(i, i + 100);
+          const { error } = await sb.storage.from("photos").remove(chunk.flatMap((p) => [p.path, p.thumb_path]));
+          if (error) throw error;
+          must(await sb.from("photos").delete().in("id", chunk.map((p) => p.id)));
+        }
       },
 
       // admin
@@ -221,7 +225,7 @@
       ["TIFFANY", "Tiffany Lim", [["Chloe Lim", true], ["Ethan Lim", true]], "482915"],
       ["AMIR", "Amir Rahman", [["Hana Rahman", true]], null, "W4N7HD"],
       ["GRACE", "Grace Tan", [["Aiden Tan", true]], "735194"],
-      ["WENDY", "Wendy Chen", [["Mei Chen", true]], "735194"],
+      ["WENDY", "Wendy Chen", [["Chen Yu Hua", true]], "735194"],
       ["KEVIN", "Kevin Wong", [["Isaac Wong", true]], "735194"],
       ["SARAH", "Sarah Lee", [["Kayla Lee", true], ["Zoe Lee", true]], "735194"],
       ["DANIEL", "Daniel Goh", [["Ryan Goh", false]], "735194"],
@@ -255,7 +259,7 @@
         const n = 1 + Math.floor(rand() * 2);
         for (let k = 0; k < n; k++) photos.push(makePhoto(date, L.style, [s.id], ++pc * 97));
       });
-      photos.push(makePhoto(date, L.style, ["s0-0", "s0-1", "s2-0"], ++pc * 97));
+      photos.push(makePhoto(date, L.style, ["s0-0", "s0-1", "s3-0"], ++pc * 97));
     }
 
     function makePhoto(date, style, ids, seed) {
@@ -399,6 +403,7 @@
         }
       },
       async deletePhoto(p) { const i = photos.findIndex((x) => x.id === p.id); if (i >= 0) photos.splice(i, 1); },
+      async deletePhotos(list) { await sleep(300); list.forEach((p) => this.deletePhoto(p)); },
 
       async listLogins() { await wait(); return people.map(pub); },
       async createFamily(d) {
@@ -468,6 +473,8 @@
     upNote: "",
     noteTouched: false,
     progress: null,
+    selecting: false,         // gallery: choosing photos for bulk delete / download
+    selected: new Set(),
   };
   const isStaff = () => S.me && (S.me.role === "teacher" || S.me.role === "admin");
   const isAdmin = () => S.me && S.me.role === "admin";
@@ -525,7 +532,7 @@
     const num = staff ? "" : 'inputmode="numeric" maxlength="6" pattern="[0-9]*"';
     return `<main class="login"><div class="login-card">
       <div class="login-head">${logoBlock()}<h1>${staff ? "Choose your password" : "Choose your PIN"}</h1>
-        <p class="muted">Hi ${esc(firstName(S.pending.name))}. You'll log in with <b>${esc(S.pending.loginId)}</b> and this ${staff ? "password" : "PIN"} from now on.</p></div>
+        <p class="muted">Hi ${esc(fullName(S.pending.name))}. You'll log in with <b>${esc(S.pending.loginId)}</b> and this ${staff ? "password" : "PIN"} from now on.</p></div>
       <form class="panel" data-form="secret" novalidate>
         <input type="text" name="username" value="${esc(S.pending.loginId)}" autocomplete="username" hidden>
         <label class="field"><span>${staff ? "New password" : "New 6-digit PIN"}</span>
@@ -566,6 +573,7 @@
     if (left <= 14) return `<span class="chip warn">Removed on ${fmtShort(gone)}${left <= 1 ? " · download now" : ""}</span>`;
     return `<span class="chip">Kept until ${fmtShort(addDays(gone, -1))}</span>`;
   }
+  const canManage = (p) => isStaff() && (isAdmin() || p.uploaded_by === S.me.id);
   function galleryPhotos() { return S.kid === "all" ? S.photos : S.photos.filter((p) => p.students.includes(S.kid)); }
 
   function lessonList(photos, { showNames, editable }) {
@@ -579,22 +587,25 @@
             ${note ? `<p class="lesson-note">${esc(note)}</p>` : editable ? `<p class="lesson-note small">No description yet</p>` : ""}
             ${editable ? `<button type="button" class="linkish small" data-act="edit-note" data-date="${L.date}">${note ? "Edit description" : "Add description"}</button>` : ""}
           </div>
-          <div class="lesson-tools">${expiryChip(L.date)}<button class="btn soft sm" data-act="download-lesson" data-date="${L.date}">${L.photos.length > 1 ? `Download all ${L.photos.length}` : "Download"}</button></div>
+          <div class="lesson-tools">${expiryChip(L.date)}${S.selecting && editable
+            ? (() => { const all = L.photos.every((p) => S.selected.has(p.id)); return `<button class="btn ${all ? "" : "soft"} sm" data-act="select-date" data-date="${L.date}" aria-pressed="${all}">${all ? "Unselect this date" : `Select all ${L.photos.length}`}</button>`; })()
+            : `<button class="btn soft sm" data-act="download-lesson" data-date="${L.date}">${L.photos.length > 1 ? `Download all ${L.photos.length}` : "Download"}</button>`}</div>
         </div>
-        <div class="grid">${L.photos.map((p) => thumbHtml(p, showNames)).join("")}</div>
+        <div class="grid">${L.photos.map((p) => thumbHtml(p, showNames, S.selecting && editable)).join("")}</div>
       </section>`;
     }).join("");
   }
-  function thumbHtml(p, showNames) {
-    const names = showNames ? p.students.map(kidName).filter(Boolean).map(firstName) : [];
-    return `<button class="thumb" data-act="open" data-id="${esc(p.id)}" aria-label="Open photo from ${fmtLong(p.taken_on)}${names.length ? ` of ${esc(names.join(", "))}` : ""}"><img src="${esc(p.thumbUrl || "")}" alt="" loading="lazy">${names.length ? `<span class="tagline">${esc(names.join(", "))}</span>` : ""}</button>`;
+  function thumbHtml(p, showNames, selecting) {
+    const names = showNames ? p.students.map(kidName).filter(Boolean).map(fullName) : [];
+    const on = selecting && S.selected.has(p.id);
+    return `<button class="thumb ${selecting ? "selectable" : ""} ${on ? "on" : ""}" data-act="${selecting ? "toggle-sel" : "open"}" data-id="${esc(p.id)}" ${selecting ? `aria-pressed="${on}"` : ""} aria-label="${selecting ? "Select" : "Open"} photo from ${fmtLong(p.taken_on)}${names.length ? ` of ${esc(names.join(", "))}` : ""}"><img src="${esc(p.thumbUrl || "")}" alt="" loading="lazy">${names.length ? `<span class="tagline">${esc(names.join(", "))}</span>` : ""}${selecting ? `<span class="tick" aria-hidden="true">${on ? "✓" : ""}</span>` : ""}</button>`;
   }
   function kidChips() {
     const kids = S.students;
     const allLabel = kids.length === 2 ? "Both" : "All";
     return `<div class="chips" role="group" aria-label="Show photos of">
       <button type="button" class="pick" aria-pressed="${S.kid === "all"}" data-act="kid" data-id="all">${allLabel}</button>
-      ${kids.map((s) => `<button type="button" class="pick" aria-pressed="${S.kid === s.id}" data-act="kid" data-id="${s.id}">${blob(s.full_name, s.id, "xs")}${esc(firstName(s.full_name))}</button>`).join("")}
+      ${kids.map((s) => `<button type="button" class="pick" aria-pressed="${S.kid === s.id}" data-act="kid" data-id="${s.id}">${blob(s.full_name, s.id, "xs")}${esc(fullName(s.full_name))}</button>`).join("")}
     </div>`;
   }
 
@@ -602,7 +613,7 @@
   function viewParent() {
     if (!S.loaded) return topBar() + `<main class="wrap">${spinner()}</main>`;
     const kids = S.students;
-    const names = joinNames(kids.map((s) => firstName(s.full_name)));
+    const names = joinNames(kids.map((s) => fullName(s.full_name)));
     const shown = galleryPhotos();
     const soon = lessonsOf(shown).filter((l) => daysBetween(today(), addDays(l.date, CFG.keepDays)) <= 14).reduce((n, l) => n + l.photos.length, 0);
     return topBar() + `<main class="wrap">
@@ -618,10 +629,10 @@
 
   // ---------- staff ----------
   function viewStaff() {
-    const tabs = [["upload", "Add photos"], ["gallery", "Gallery", S.photos.length]];
-    if (isAdmin()) tabs.push(["students", "Students", S.students.length], ["teachers", "Teachers", S.logins.filter((l) => l.role !== "parent").length]);
-    const nav = `<nav class="tabs" role="tablist">${tabs.map(([k, label, n]) =>
-      `<button class="tab" role="tab" aria-selected="${S.tab === k}" data-act="tab" data-tab="${k}">${label}${n ? `<span class="count">${n}</span>` : ""}</button>`).join("")}</nav>`;
+    const tabs = [["upload", "Add photos", 0, "Upload"], ["gallery", "Gallery", S.photos.length, "Gallery"]];
+    if (isAdmin()) tabs.push(["students", "Students", S.students.length, "Students"], ["teachers", "Teachers", S.logins.filter((l) => l.role !== "parent").length, "Teachers"]);
+    const nav = `<nav class="tabs" role="tablist">${tabs.map(([k, label, n, short]) =>
+      `<button class="tab" role="tab" aria-selected="${S.tab === k}" data-act="tab" data-tab="${k}"><span class="t-long">${label}</span><span class="t-short">${short}</span>${n ? `<span class="count">${n}</span>` : ""}</button>`).join("")}</nav>`;
     const body = !S.loaded ? spinner() : { upload: viewUpload, gallery: viewGallery, students: viewStudents, teachers: viewTeachers }[S.tab]();
     return topBar(nav) + `<main class="wrap">${body}</main>`;
   }
@@ -635,7 +646,7 @@
     const list = searchedStudents();
     const chosen = S.students.filter((s) => S.tagged.has(s.id));
     const nFiles = S.files.length;
-    const who = chosen.length === 1 ? firstName(chosen[0].full_name) : plural(chosen.length, "child", "children");
+    const who = chosen.length === 1 ? fullName(chosen[0].full_name) : plural(chosen.length, "child", "children");
     const existing = S.lessons[S.upDate];
     return `
       <section class="step">
@@ -643,7 +654,7 @@
         <input class="input" id="kidSearch" type="search" placeholder="Search names" value="${esc(S.search)}" aria-label="Search names">
         <div class="kids">${list.map((s) => `<button type="button" class="kid" data-act="tag" data-id="${s.id}" aria-pressed="${S.tagged.has(s.id)}" ${s.consent ? "" : "disabled"}>
             ${blob(s.full_name, s.id)}<span><b>${esc(s.full_name)}</b>${s.consent ? "" : `<small>No photo consent</small>`}</span></button>`).join("") || `<p class="muted">${S.students.length ? "No children match." : "No children yet. The admin adds them in Students."}</p>`}</div>
-        <p class="selected-line">${chosen.length ? `Selected: <b>${esc(chosen.map((s) => firstName(s.full_name)).join(", "))}</b> <button type="button" class="linkish" data-act="clear-tags">Clear</button>` : "Tap each child in the photos. For a group photo, pick everyone in it. Each parent only sees their own child's name."}</p>
+        <p class="selected-line">${chosen.length ? `Selected: <b>${esc(chosen.map((s) => fullName(s.full_name)).join(", "))}</b> <button type="button" class="linkish" data-act="clear-tags">Clear</button>` : "Tap each child in the photos. For a group photo, pick everyone in it. Each parent only sees their own child's name."}</p>
       </section>
 
       <section class="step">
@@ -668,14 +679,26 @@
 
   function viewGallery() {
     const count = (id) => S.photos.filter((p) => p.students.includes(id)).length;
+    const shown = galleryPhotos();
+    const nSel = S.selected.size;
     return `<div class="section-head"><h1>Gallery</h1>
-        <select class="input" id="kidSelect" style="width:auto;min-height:44px" aria-label="Show photos of">
-          <option value="all">Everyone (${S.photos.length})</option>
-          ${S.students.map((s) => `<option value="${s.id}" ${S.kid === s.id ? "selected" : ""}>${esc(s.full_name)} (${count(s.id)})</option>`).join("")}
-        </select></div>
+        <div class="head-tools">
+          <select class="input" id="kidSelect" style="min-height:44px" aria-label="Show photos of">
+            <option value="all">Everyone (${S.photos.length})</option>
+            ${S.students.map((s) => `<option value="${s.id}" ${S.kid === s.id ? "selected" : ""}>${esc(s.full_name)} (${count(s.id)})</option>`).join("")}
+          </select>
+          ${shown.length ? `<button class="btn ${S.selecting ? "" : "ghost"}" data-act="select-mode">${S.selecting ? "Done" : "Select"}</button>` : ""}
+        </div></div>
+      ${S.selecting ? `<p class="select-hint">Tap photos to select them, or use <b>Select all</b> on a date. ${shown.length > 1 ? `<button type="button" class="linkish" data-act="select-shown">${shown.every((p) => S.selected.has(p.id)) ? "Unselect everything shown" : `Select everything shown (${shown.length})`}</button>` : ""}</p>
+        <div class="selbar" role="region" aria-label="Selected photos">
+          <span class="tnum"><b>${nSel}</b> selected</span>
+          <button class="btn ghost sm" data-act="select-clear" ${nSel ? "" : "disabled"}>Clear</button>
+          <button class="btn soft sm" data-act="download-selected" ${nSel ? "" : "disabled"}>Download</button>
+          <button class="btn danger sm" data-act="delete-selected" ${nSel ? "" : "disabled"}>Delete</button>
+        </div>` : ""}
       ${S.kid !== "all" ? `<div class="child-card">${blob(kidName(S.kid), S.kid, "lg")}<div><p class="label">Photos of</p><h1>${esc(kidName(S.kid))}</h1></div></div>` : ""}
       <p class="small muted">Photos are removed automatically ${CFG.keepDays} days after the lesson.</p>
-      ${lessonList(galleryPhotos(), { showNames: true, editable: true }) || `<div class="empty"><h2>No photos${S.kid === "all" ? " yet" : ` of ${esc(firstName(kidName(S.kid)))} yet`}</h2><p>Upload photos in "Add photos".</p></div>`}`;
+      ${lessonList(galleryPhotos(), { showNames: true, editable: true }) || `<div class="empty"><h2>No photos${S.kid === "all" ? " yet" : ` of ${esc(fullName(kidName(S.kid)))} yet`}</h2><p>Upload photos in "Add photos".</p></div>`}`;
   }
 
   function statusChip(p) {
@@ -730,7 +753,7 @@
     closeModal(false);
     const o = document.createElement("div");
     o.className = "overlay"; o.id = "overlay";
-    o.innerHTML = `<div class="modal" role="dialog" aria-modal="true" ${wide ? 'style="max-width:620px"' : ""}>${html}</div>`;
+    o.innerHTML = `<div class="modal" role="dialog" aria-modal="true" ${wide ? 'style="max-width:620px"' : ""}><span class="grabber" aria-hidden="true"></span>${html}</div>`;
     o.addEventListener("click", (e) => { if (e.target === o) closeModal(); });
     document.body.appendChild(o);
     o.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closeModal));
@@ -738,6 +761,24 @@
     o.querySelector("input,select,textarea,button")?.focus();
     return o;
   }
+  // Phones: keep the open window above the on-screen keyboard, and scroll the
+  // field being typed in into view.
+  function fitToKeyboard() {
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : window.innerHeight;
+    document.documentElement.style.setProperty("--vvh", `${Math.round(h)}px`);
+    const o = document.getElementById("overlay");
+    if (o && vv) o.style.transform = `translateY(${Math.round(vv.offsetTop)}px)`;
+  }
+  window.visualViewport?.addEventListener("resize", fitToKeyboard);
+  window.visualViewport?.addEventListener("scroll", fitToKeyboard);
+  fitToKeyboard();
+  document.addEventListener("focusin", (e) => {
+    const f = e.target.closest("#overlay input, #overlay textarea, #overlay select, .login input");
+    if (f) setTimeout(() => f.scrollIntoView({ block: "center", behavior: "smooth" }), 300);
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.getElementById("overlay")) closeModal(); });
+
   // Closing any window redraws the page, so lists always show the latest changes.
   function closeModal(redraw = true) {
     const o = document.getElementById("overlay");
@@ -810,14 +851,14 @@
       const full_name = o.querySelector('[data-k="name"]').value.trim();
       if (!full_name) return showErr(o, "#cErr", "Please enter the child's name.");
       e.target.disabled = true;
-      try { await api.addChild(parentId, { full_name, consent: o.querySelector('[data-k="consent"]').checked }); closeModal(); await refresh(); toast(`${firstName(full_name)} added`); }
+      try { await api.addChild(parentId, { full_name, consent: o.querySelector('[data-k="consent"]').checked }); closeModal(); await refresh(); toast(`${fullName(full_name)} added`); }
       catch (x) { showErr(o, "#cErr", x.message); e.target.disabled = false; }
     });
   }
 
   function openEditChild(id) {
     const s = S.students.find((x) => x.id === id);
-    const o = modal(`<div class="modal-head"><h2>Edit ${esc(firstName(s.full_name))}</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
+    const o = modal(`<div class="modal-head"><h2>Edit ${esc(fullName(s.full_name))}</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
       ${childRow(0, s)}
       <label class="field"><span>Notes for teachers</span><textarea class="input" id="cNotes" placeholder="Optional">${esc(s.notes || "")}</textarea></label>
       <p class="form-error" id="cErr" hidden></p>
@@ -833,7 +874,7 @@
       catch (x) { showErr(o, "#cErr", x.message); e.target.disabled = false; }
     });
     o.querySelector("#cRemove").addEventListener("click", async () => {
-      const ok = await confirmBox({ title: `Remove ${s.full_name}?`, text: `Photos that show only ${esc(firstName(s.full_name))} are deleted too. Group photos stay for the other children. This can't be undone.`, ok: "Remove", danger: true });
+      const ok = await confirmBox({ title: `Remove ${s.full_name}?`, text: `Photos that show only ${esc(fullName(s.full_name))} are deleted too. Group photos stay for the other children. This can't be undone.`, ok: "Remove", danger: true });
       if (!ok) return;
       try { await api.deleteChild(id); if (S.kid === id) S.kid = "all"; await refresh(); toast(`${s.full_name} removed`); } catch (x) { fail(x); }
     });
@@ -877,10 +918,10 @@
 
   function showSlip(res, kind) {
     const until = fmtDay(isoOf(new Date(res.expiresAt)));
-    const kids = res.children && res.children.length ? joinNames(res.children.map(firstName)) : "";
+    const kids = res.children && res.children.length ? joinNames(res.children.map(fullName)) : "";
     const msg = kind === "parent"
-      ? `Hi ${firstName(res.name)}! Here's your login for ${kids ? `${kids}'s` : "your child's"} art class photos at ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own 6-digit PIN. Photos stay for 3 months after each lesson, so download the ones you love.`
-      : `Hi ${firstName(res.name)}! Here's your teacher login for ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own password.`;
+      ? `Hi ${fullName(res.name)}! Here's your login for ${kids ? `${kids}'s` : "your child's"} art class photos at ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own 6-digit PIN. Photos stay for 3 months after each lesson, so download the ones you love.`
+      : `Hi ${fullName(res.name)}! Here's your teacher login for ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own password.`;
     const o = modal(`<div class="modal-head"><h2>Login for ${esc(res.name)}</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
       <div class="slip">
         <p class="label">${esc(CFG.studioName)} · ${kind === "parent" ? "Parent Gallery" : "Teacher login"}</p>
@@ -904,7 +945,7 @@
   let LB = null;
   function openLightbox(list, index) { LB = { list, index, confirmDelete: false }; drawLightbox(); document.addEventListener("keydown", lbKeys); }
   function closeLightbox() { document.getElementById("lb")?.remove(); document.removeEventListener("keydown", lbKeys); LB = null; }
-  function lbKeys(e) { if (!LB) return; if (e.key === "Escape") closeLightbox(); if (e.key === "ArrowLeft") lbMove(-1); if (e.key === "ArrowRight") lbMove(1); }
+  function lbKeys(e) { if (!LB || document.getElementById("overlay")) return; if (e.key === "Escape") closeLightbox(); if (e.key === "ArrowLeft") lbMove(-1); if (e.key === "ArrowRight") lbMove(1); }
   function lbMove(d) { if (!LB) return; LB.index = (LB.index + d + LB.list.length) % LB.list.length; LB.confirmDelete = false; drawLightbox(); }
   async function drawLightbox() {
     const p = LB.list[LB.index];
@@ -921,7 +962,7 @@
       <div class="lb-bottom">
         <div class="lb-caption"><b>${fmtLong(p.taken_on)}</b>${note ? `<span>${esc(note)}</span>` : ""}${names.length && (isStaff() || S.students.length > 1) ? `<span>${esc(joinNames(names))}</span>` : ""}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${canDelete ? (LB.confirmDelete ? `<button class="btn danger sm" data-lb="delete-yes">Yes, delete</button><button class="btn ghost sm" data-lb="delete-no">Keep</button>` : `<button class="btn danger-ghost sm" data-lb="delete">Delete</button>`) : ""}
+          ${canDelete ? `<button class="btn danger-ghost sm" data-lb="delete">Delete</button>` : ""}
         </div>
       </div>`;
     el.querySelector('[data-lb="close"]').focus();
@@ -936,9 +977,9 @@
     if (a === "prev") lbMove(-1);
     if (a === "next") lbMove(1);
     if (a === "download") downloadPhotos([p]);
-    if (a === "delete") { LB.confirmDelete = true; drawLightbox(); }
-    if (a === "delete-no") { LB.confirmDelete = false; drawLightbox(); }
-    if (a === "delete-yes") {
+    if (a === "delete") {
+      const ok = await confirmBox({ title: "Delete this photo?", text: `It will be removed for everyone, including parents. This can't be undone.`, ok: "Delete", danger: true });
+      if (!ok || !LB) return;
       try {
         await api.deletePhoto(p);
         S.photos = S.photos.filter((x) => x.id !== p.id);
@@ -959,7 +1000,7 @@
 
   // ---------- downloads ----------
   function fileLabel(p, i) {
-    const who = p.students.map(kidName).filter(Boolean).map(firstName).join("-") || "art-class";
+    const who = p.students.map(kidName).filter(Boolean).map(fullName).join("-") || "art-class";
     return `${who}-${p.taken_on}-${i + 1}.jpg`.replace(/[^\w.-]+/g, "-");
   }
   function saveBlob(data, name) {
@@ -999,7 +1040,8 @@
   const actions = {
     async logout() {
       await api.logout();
-      Object.assign(S, { me: null, loaded: false, students: [], photos: [], lessons: {}, logins: [], kid: "all", search: "", files: [], progress: null, screen: "login", error: "" });
+      Object.assign(S, { me: null, loaded: false, students: [], photos: [], lessons: {}, logins: [], kid: "all", search: "", files: [], progress: null, screen: "login", error: "", selecting: false });
+      S.selected.clear();
       S.tagged.clear(); render();
     },
     demo(el) {
@@ -1010,9 +1052,9 @@
       else document.querySelector('[data-form="login"] .btn').focus();
     },
     "to-login"() { S.screen = "login"; S.error = ""; S.pending = null; if (location.hash === "#setup") history.replaceState(null, "", location.pathname); render(); },
-    tab(el) { S.tab = el.dataset.tab; S.search = ""; render(); if (S.tab !== "upload") refresh(); },
+    tab(el) { S.tab = el.dataset.tab; S.search = ""; S.selecting = false; S.selected.clear(); render(); if (S.tab !== "upload") refresh(); },
     kid(el) { S.kid = el.dataset.id; render(); },
-    "view-kid"(el) { S.kid = el.dataset.id; S.tab = "gallery"; render(); window.scrollTo(0, 0); },
+    "view-kid"(el) { S.kid = el.dataset.id; S.tab = "gallery"; S.selecting = false; S.selected.clear(); render(); window.scrollTo(0, 0); },
     tag(el) { const id = el.dataset.id; S.tagged.has(id) ? S.tagged.delete(id) : S.tagged.add(id); render(); },
     "clear-tags"() { S.tagged.clear(); render(); },
     unfile(el) { const f = S.files.splice(Number(el.dataset.i), 1)[0]; URL.revokeObjectURL(f.url); render(); },
@@ -1022,7 +1064,7 @@
       try {
         if (note !== (S.lessons[date] || "")) { await api.saveLessonNote(date, note, S.me); S.lessons[date] = note; }
         await api.upload({ date, files, studentIds: ids, me: S.me, onProgress: (d) => { S.progress.done = d; render(); } });
-        toast(`Uploaded ${plural(files.length, "photo")} for ${S.students.filter((s) => ids.includes(s.id)).map((s) => firstName(s.full_name)).join(", ")}`);
+        toast(`Uploaded ${plural(files.length, "photo")} for ${S.students.filter((s) => ids.includes(s.id)).map((s) => fullName(s.full_name)).join(", ")}`);
         S.files.forEach((f) => URL.revokeObjectURL(f.url));
         S.files = []; S.tagged.clear(); S.progress = null;
         render(); refresh();
@@ -1035,10 +1077,52 @@
     "download-lesson"(el) {
       const date = el.dataset.date;
       const list = galleryPhotos().filter((p) => p.taken_on === date);
-      const who = S.kid !== "all" ? firstName(kidName(S.kid)) : S.me.role === "parent" ? S.students.map((s) => firstName(s.full_name)).join("-") : "class";
+      const who = S.kid !== "all" ? fullName(kidName(S.kid)) : S.me.role === "parent" ? S.students.map((s) => fullName(s.full_name)).join("-") : "class";
       downloadPhotos(list, `${who}-${date}.zip`.replace(/[^\w.-]+/g, "-"));
     },
     "edit-note": (el) => openEditNote(el.dataset.date),
+    "select-mode"() { S.selecting = !S.selecting; S.selected.clear(); render(); },
+    "toggle-sel"(el) { const id = el.dataset.id; S.selected.has(id) ? S.selected.delete(id) : S.selected.add(id); render(); },
+    "select-date"(el) {
+      const list = galleryPhotos().filter((p) => p.taken_on === el.dataset.date);
+      const all = list.every((p) => S.selected.has(p.id));
+      list.forEach((p) => (all ? S.selected.delete(p.id) : S.selected.add(p.id)));
+      render();
+    },
+    "select-shown"() {
+      const list = galleryPhotos();
+      const all = list.every((p) => S.selected.has(p.id));
+      list.forEach((p) => (all ? S.selected.delete(p.id) : S.selected.add(p.id)));
+      render();
+    },
+    "select-clear"() { S.selected.clear(); render(); },
+    "download-selected"() {
+      const list = S.photos.filter((p) => S.selected.has(p.id));
+      downloadPhotos(list, `selected-photos-${today()}.zip`);
+    },
+    async "delete-selected"() {
+      const list = S.photos.filter((p) => S.selected.has(p.id));
+      const mine = list.filter(canManage);
+      const others = list.length - mine.length;
+      if (!mine.length) { toast("You can only delete photos you uploaded. Ask the admin to delete these.", "err"); return; }
+      const dates = [...new Set(mine.map((p) => p.taken_on))].sort().reverse().map(fmtShort);
+      const ok = await confirmBox({
+        title: `Delete ${plural(mine.length, "photo")}?`,
+        text: `From ${esc(dates.slice(0, 4).join(", "))}${dates.length > 4 ? ` and ${dates.length - 4} more dates` : ""}. They'll be removed for everyone, including parents. This can't be undone.${others ? `<br><br>${plural(others, "photo")} uploaded by other teachers will be kept.` : ""}`,
+        ok: `Delete ${plural(mine.length, "photo")}`, danger: true,
+      });
+      if (!ok) return;
+      toast(`Deleting ${plural(mine.length, "photo")}…`);
+      try {
+        await api.deletePhotos(mine);
+        const gone = new Set(mine.map((p) => p.id));
+        S.photos = S.photos.filter((p) => !gone.has(p.id));
+        S.selected.clear();
+        if (!galleryPhotos().length) S.selecting = false;
+        render();
+        toast(`${plural(mine.length, "photo")} deleted`);
+      } catch (x) { fail(x); refresh(); }
+    },
     "add-family": () => openAddFamily(),
     "add-child": (el) => openAddChild(el.dataset.id),
     "edit-child": (el) => openEditChild(el.dataset.id),
@@ -1063,7 +1147,7 @@
       const ok = await confirmBox({
         title: `Remove ${p.login_id}?`,
         text: p.role === "parent"
-          ? `This deletes the login for ${esc(p.display_name)} and their ${kids.length > 1 ? "children" : "child"} (${esc(joinNames(kids.map((k) => firstName(k.full_name))))}). Photos that show only them are deleted too. This can't be undone.`
+          ? `This deletes the login for ${esc(p.display_name)} and their ${kids.length > 1 ? "children" : "child"} (${esc(joinNames(kids.map((k) => fullName(k.full_name))))}). Photos that show only them are deleted too. This can't be undone.`
           : `${esc(p.display_name)} won't be able to log in any more. Photos they uploaded stay in the gallery.`,
         ok: "Remove", danger: true,
       });
@@ -1087,7 +1171,7 @@
       if (!S.noteTouched || !S.upNote) { S.upNote = S.lessons[S.upDate] || ""; S.noteTouched = false; }
       render();
     }
-    if (el.id === "kidSelect") { S.kid = el.value; render(); }
+    if (el.id === "kidSelect") { S.kid = el.value; const shown = new Set(galleryPhotos().map((p) => p.id)); S.selected.forEach((id) => { if (!shown.has(id)) S.selected.delete(id); }); render(); }
   });
 
   $app.addEventListener("input", (e) => {
