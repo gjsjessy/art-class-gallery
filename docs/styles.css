@@ -229,7 +229,7 @@ textarea.input { min-height: 84px; resize: vertical; }
 .thumb .tagline { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 6px; font-size: .72rem; font-weight: 700; color: #fff; text-align: left;
   background: linear-gradient(transparent, rgba(0,0,0,.65)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.journey ol { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 0; }
+.journey-unused ol { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 0; }
 .journey li { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .journey li:first-child b::after { content: " · now"; color: var(--muted); font-weight: 400; }
 .journey .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--w); justify-self: center; }
@@ -331,3 +331,23 @@ textarea.input { min-height: 84px; resize: vertical; }
 @keyframes rise { from { opacity: 0; transform: translate(-50%, 8px); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- version 2: families, kid picker, per-date notes ---------- */
+.blob.xs { width: 24px; height: 24px; font-size: .62rem; }
+.blob-stack { display: flex; }
+.blob-stack .blob + .blob { margin-left: -18px; box-shadow: 0 0 0 3px var(--ground); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.pick { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 14px 4px 6px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 700; cursor: pointer; }
+.pick:first-child { padding-left: 16px; }
+.pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.family { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.family-head { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 14px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.family-head .name { display: grid; gap: 2px; min-width: 0; }
+.family-head .sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: .85rem; }
+.family-head .ctrls { display: flex; gap: 6px; flex-wrap: wrap; }
+.family-foot { padding: 10px 16px; }
+.family .row:last-of-type { border-bottom: 1px solid var(--line); }
+.child-entry { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.children { display: grid; gap: 10px; }
+.lesson-head .linkish { justify-self: start; font-size: .85rem; }
+.lb-top .btn { min-height: 36px; }
