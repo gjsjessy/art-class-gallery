@@ -123,8 +123,11 @@
         });
       } catch (_) { throw new Error("Can't reach the server. Check your internet connection and try again."); }
       const out = await res.json().catch(() => ({}));
-      if (!res.ok || out.error) throw new Error(out.error || "Something went wrong. Please try again.");
-      return out;
+      if (res.ok && !out.error) return out;
+      if (out.error) throw new Error(out.error);
+      if (res.status === 404) throw new Error("Setup problem: Supabase can't find a server function named \"api\". Check it's deployed with exactly that name.");
+      if (res.status === 401 || res.status === 403) throw new Error("Setup problem: \"Verify JWT\" is still on for the api function in Supabase. Turn it off and save.");
+      throw new Error(`The server had a problem (error ${res.status}). Please try again.`);
     }
     async function loadMe() {
       const { data: { user } } = await sb.auth.getUser();
@@ -1203,6 +1206,11 @@
     S.screen = location.hash === "#setup" && !DEMO ? "setup" : "login";
     render();
   }
+
+  // typing #setup into the address bar of an open page
+  window.addEventListener("hashchange", () => {
+    if (!S.me && !DEMO && location.hash === "#setup") { S.screen = "setup"; S.error = ""; render(); }
+  });
 
   // refresh photo links when coming back to the app after a while
   let hiddenAt = 0;
