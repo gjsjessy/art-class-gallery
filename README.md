@@ -2,29 +2,30 @@
 
 A private photo gallery for art class students and their parents, built for **Sasha & Lulu Atelier**.
 
-Teachers upload photos during lessons and tag the children in them. Parents log in to view and save their own child's artwork, and to follow their progress through the studio's programme levels. Photos are removed automatically three months after each lesson.
+Teachers upload photos during lessons and tag the children in them. Parents log in to view and download their own children's artwork. One parent login covers all of that parent's children. Photos are removed automatically three months after each lesson.
 
 ---
 
 ## Features
 
 **For parents**
-- One login per child, using a Login ID and a 6-digit PIN
-- Photos grouped by lesson date, with the teacher's note on what was covered
-- Save a single photo or a whole lesson, straight to the phone's photo library
-- Current level and level history (Sparkle → Jumble → Plopping → Artsy → Starburst)
+- One login per family, using a friendly Login ID (e.g. `TIFFANY`) and a 6-digit PIN
+- See every child on the login together, or one child at a time
+- Photos grouped by lesson date, with one description per lesson
+- Download a single photo or a whole lesson, straight to the phone's photo library
 - Advance notice before photos are removed
 
 **For teachers**
 - Tag one or more children, then take or choose photos and upload them
+- One description per lesson date, set once and editable later
+- A gallery of every child's photos, filterable by child, with the same download options as parents
 - Photos are resized on the device before upload, which keeps uploads fast and storage small
-- Set and update each child's level
-- Browse and delete recent photos
-- Optionally limited to a single class (Young or Older)
+- Delete photos they uploaded
 
 **For admins**
-- Add, edit and remove children and teachers
-- Generate one-time login codes, with a ready-to-send message for parents
+- Add families (a parent login with one or more children), and add children to an existing family
+- Add teachers and other admins
+- Choose each Login ID, and generate one-time codes with a ready-to-send message
 - Reset forgotten PINs, and turn logins off or on
 - Record photo consent for each child
 
@@ -33,7 +34,7 @@ Teachers upload photos during lessons and tag the children in them. Parents log 
 ## Privacy and security
 
 - **Private storage.** Photos are never publicly accessible. They load only through short-lived signed links, for signed-in users who are allowed to see them.
-- **Per-child access.** Database row-level security ensures parents only ever see their own child's photos. In group photos, a parent sees only their own child's name.
+- **Per-family access.** Database row-level security ensures parents only ever see their own children's photos. In group photos, a parent sees only their own children's names.
 - **Photo consent.** Children without recorded consent cannot be tagged in photos.
 - **One-time codes.** Codes are random, expire after 7 days, and work only once.
 - **PIN rules.** Easily guessed PINs, such as birthdays, repeated digits and number runs, are rejected.
@@ -82,8 +83,6 @@ Settings are in `docs/config.js`:
 |---|---|
 | `studioName`, `shortName`, `logo` | Branding shown in the app |
 | `supabaseUrl`, `supabaseKey` | Supabase Project URL and publishable key. These are safe to publish. |
-| `classes` | Class groups, e.g. Young and Older |
-| `levels` | Programme levels, in order |
 | `keepDays` | Days a photo is kept after its lesson (default 90) |
 
 When `supabaseUrl` is empty, the app runs in demo mode with sample data.
@@ -94,7 +93,7 @@ When `supabaseUrl` is empty, the app runs in demo mode with sample data.
 
 ### 1. Supabase
 1. Create a project in the **Southeast Asia (Singapore)** region.
-2. In **SQL Editor**, run the contents of `supabase/schema.sql`.
+2. In **SQL Editor**, run the contents of `supabase/schema.sql`. Running it again resets all app data.
 3. In **Edge Functions**, create a function named `api` with the contents of `supabase/functions/api/index.ts`. Turn off **Verify JWT** for this function.
 4. Under **Edge Functions → Secrets**, add:
    - `PIN_PEPPER`: a long random value. Do not change it once PINs are in use.
@@ -107,7 +106,7 @@ When `supabaseUrl` is empty, the app runs in demo mode with sample data.
 2. Under **Settings → Pages**, deploy from the `main` branch, `/docs` folder.
 
 ### 3. First admin
-Open the site with `#setup` at the end of the address. Enter a name, a password, and the `CRON_SECRET` as the setup key. This works only once, while no admin exists.
+Open the site with `#setup` at the end of the address, then refresh the page. Enter a name, a Login ID, a password, and the `CRON_SECRET` as the setup key. This works only once, while no admin exists.
 
 ### 4. Daily cleanup
 Under **Settings → Secrets and variables → Actions**, add `SUPABASE_URL`, `SUPABASE_KEY` and `CRON_SECRET`. Then run **Daily cleanup** once from the **Actions** tab to confirm it works.
