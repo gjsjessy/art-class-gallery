@@ -7,7 +7,7 @@ window.APP_CONFIG = {
   studioName: "Sasha & Lulu Atelier", // used in messages to parents
   shortName: "Sasha & Lulu",          // big part of the header wordmark
   logo: "logo.png",                  // shown on the login screen
-  supabaseUrl: "https://apofbzufgosnrmtnenrm.supabase.co/rest/v1/",                   // e.g. "https://abcdefgh.supabase.co"
+  supabaseUrl: "https://apofbzufgosnrmtnenrm.supabase.co",                   // e.g. "https://abcdefgh.supabase.co"
   supabaseKey: "sb_publishable__8_9l8dd2sMGILRyRP6QyA_iXXsTCOT",                   // the "anon" / "publishable" key (safe to put here)
 
   classes: ["Young", "Older"],       // class groups
