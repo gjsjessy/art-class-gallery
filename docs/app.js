@@ -187,6 +187,13 @@
         }
       },
       async deletePhoto(p) { return this.deletePhotos([p]); },
+      // Change which children are tagged in a photo
+      async setPhotoStudents(p, ids) {
+        const add = ids.filter((id) => !p.students.includes(id));
+        const remove = p.students.filter((id) => !ids.includes(id));
+        if (add.length) must(await sb.from("photo_students").insert(add.map((sid) => ({ photo_id: p.id, student_id: sid }))));
+        if (remove.length) must(await sb.from("photo_students").delete().eq("photo_id", p.id).in("student_id", remove));
+      },
       async deletePhotos(list) {
         for (let i = 0; i < list.length; i += 100) {
           const chunk = list.slice(i, i + 100);
@@ -206,6 +213,9 @@
       createStaff: (d) => call("create_staff", d),
       resetAccess: (id) => call("reset_access", { userId: id }),
       deletePerson: (id) => call("delete_person", { userId: id }),
+      changeLoginId: (id, newLoginId) => call("change_login_id", { userId: id, newLoginId }),
+      async changeMyLogin(newLoginId, currentSecret) { const out = await call("change_my_login", { newLoginId, currentSecret }); return { me: await useSession(out), loginId: out.loginId }; },
+      async changeMySecret(currentSecret, newSecret) { const out = await call("change_my_secret", { currentSecret, newSecret }); return useSession(out); },
     };
   }
 
@@ -403,6 +413,7 @@
         }
       },
       async deletePhoto(p) { const i = photos.findIndex((x) => x.id === p.id); if (i >= 0) photos.splice(i, 1); },
+      async setPhotoStudents(p, ids) { await sleep(200); const real = photos.find((x) => x.id === p.id); if (real) real.students = [...ids]; },
       async deletePhotos(list) { await sleep(300); list.forEach((p) => this.deletePhoto(p)); },
 
       async listLogins() { await wait(); return people.map(pub); },
@@ -437,6 +448,28 @@
         if (p.id === session.id) throw new Error("You can't reset your own login here. Ask another admin.");
         p.secret_set = false; p._code = code6(); p._secret = null;
         return { id, loginId: p.login_id, code: p._code, expiresAt: expiry(), name: p.display_name };
+      },
+      async changeLoginId(id, newLoginId) {
+        await wait();
+        const p = people.find((x) => x.id === id);
+        if (p.id === session.id) throw new Error("To change your own Login ID, use Account at the top of the page.");
+        if (cleanId(newLoginId) === p.login_id) throw new Error("That's already their Login ID.");
+        p.login_id = takeId(newLoginId, p.display_name); p.secret_set = false; p._secret = null; p._code = code6();
+        return { id, loginId: p.login_id, code: p._code, expiresAt: expiry(), name: p.display_name };
+      },
+      async changeMyLogin(newLoginId, currentSecret) {
+        await wait();
+        if (currentSecret !== session._secret) throw new Error(`Your current ${session.role === "parent" ? "PIN" : "password"} isn't right. 4 tries left before a short pause.`);
+        if (cleanId(newLoginId) === session.login_id) throw new Error("That's already your Login ID.");
+        session.login_id = takeId(newLoginId, session.display_name);
+        return { me: pub(session), loginId: session.login_id };
+      },
+      async changeMySecret(currentSecret, newSecret) {
+        await wait();
+        if (currentSecret !== session._secret) throw new Error(`Your current ${session.role === "parent" ? "PIN" : "password"} isn't right. 4 tries left before a short pause.`);
+        const problem = session.role === "parent" ? pinProblem(newSecret) : passwordProblem(newSecret);
+        if (problem) throw new Error(problem);
+        session._secret = newSecret; return pub(session);
       },
       async deletePerson(id) {
         await wait();
@@ -497,7 +530,7 @@
     return `<header class="bar"><div class="bar-inner">
       <div class="brand">${wordmark()}${DEMO ? `<span class="demo-flag">DEMO</span>` : ""}</div>
       <span class="who">${esc(S.me?.display_name || "")}${role ? ` · ${role}` : ""}</span>
-      <button class="btn ghost sm" data-act="logout">Log out</button>
+      <button class="btn ghost sm" data-act="account" aria-label="Account: ${esc(S.me?.display_name || "")}">${blob(S.me?.display_name || "?", S.me?.id || "", "xs")}Account</button>
     </div>${extra}</header>`;
   }
 
@@ -509,7 +542,7 @@
         <p class="muted">Photos of your child's art adventures in class. Teachers log in here too.</p></div>
       <form class="panel" data-form="login" autocomplete="on" novalidate>
         <label class="field"><span>Login ID</span>
-          <input class="input code" id="loginId" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="e.g. TIFFANY" required></label>
+          <input class="input code" id="loginId" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="e.g. SASHA" required></label>
         <label class="field"><span>PIN or one-time code</span>
           <input class="input" id="secret" name="password" type="password" autocomplete="current-password" required>
           <small>First time here? Enter the one-time code from the studio. You'll then choose your own PIN.</small></label>
@@ -573,6 +606,8 @@
     if (left <= 14) return `<span class="chip warn">Removed on ${fmtShort(gone)}${left <= 1 ? " · download now" : ""}</span>`;
     return `<span class="chip">Kept until ${fmtShort(addDays(gone, -1))}</span>`;
   }
+  const isTouch = () => matchMedia("(pointer: coarse)").matches || (navigator.maxTouchPoints > 1 && /Mac|iPad/.test(navigator.platform));
+  const CAM_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>`;
   const canManage = (p) => isStaff() && (isAdmin() || p.uploaded_by === S.me.id);
   function galleryPhotos() { return S.kid === "all" ? S.photos : S.photos.filter((p) => p.students.includes(S.kid)); }
 
@@ -659,8 +694,13 @@
 
       <section class="step">
         <div class="step-title"><span class="step-n">2</span><h2>Add photos</h2></div>
-        <label class="drop" id="drop"><input type="file" id="fileInput" accept="image/*" multiple>
-          <b>Take or choose photos</b><span class="small">On a phone this opens the camera or your gallery. On a computer you can also drop files here.</span></label>
+        <div class="add-btns">
+          ${isTouch() ? `<label class="btn big" for="camInput">${CAM_ICON}Take photo</label><input type="file" id="camInput" accept="image/*" capture="environment" class="vh">`
+                      : `<button type="button" class="btn big" data-act="webcam">${CAM_ICON}Take photo</button>`}
+          <label class="btn soft big" for="fileInput">Choose photos</label><input type="file" id="fileInput" accept="image/*" multiple class="vh">
+        </div>
+        ${isTouch() ? `<p class="small muted">Take photo opens the camera. After each photo, tap Take photo again for the next one.</p>`
+          : `<label class="drop" id="drop" for="fileInput"><b>Or drop photos here</b><span class="small">Drag files from your computer into this box.</span></label>`}
         ${nFiles ? `<div class="previews">${S.files.map((f, i) => `<div class="preview"><img src="${f.url}" alt="Photo ${i + 1}"><button type="button" data-act="unfile" data-i="${i}" aria-label="Remove photo ${i + 1}">×</button></div>`).join("")}</div>` : ""}
       </section>
 
@@ -718,7 +758,7 @@
           <div class="name"><p class="label">Parent login</p><b>${esc(p.display_name)}</b>
             <div class="sub"><span class="mono">${esc(p.login_id)}</span>${statusChip(p)}</div></div>
           <div class="ctrls">
-            <button class="btn ghost sm" data-act="edit-login" data-id="${p.id}">Edit name</button>
+            <button class="btn ghost sm" data-act="edit-login" data-id="${p.id}">Edit</button>
             <button class="btn ghost sm" data-act="reset" data-id="${p.id}">New code</button>
             <button class="btn ghost sm" data-act="toggle-active" data-id="${p.id}">${p.active ? "Turn off" : "Turn on"}</button>
             <button class="btn danger-ghost sm" data-act="remove-login" data-id="${p.id}">Remove</button>
@@ -740,7 +780,7 @@
         ${blob(t.display_name, t.id)}
         <div class="name"><b>${esc(t.display_name)}${t.id === S.me.id ? " (you)" : ""}</b>
           <div class="sub"><span class="chip ${t.role === "admin" ? "accent" : ""}">${t.role === "admin" ? "Admin" : "Teacher"}</span><span class="mono">${esc(t.login_id)}</span>${statusChip(t)}</div></div>
-        <div class="ctrls"><button class="btn ghost sm" data-act="edit-login" data-id="${t.id}">Edit name</button>${t.id !== S.me.id ? `<button class="btn ghost sm" data-act="reset" data-id="${t.id}">New code</button>
+        <div class="ctrls"><button class="btn ghost sm" data-act="edit-login" data-id="${t.id}">Edit</button>${t.id !== S.me.id ? `<button class="btn ghost sm" data-act="reset" data-id="${t.id}">New code</button>
           <button class="btn ghost sm" data-act="toggle-active" data-id="${t.id}">${t.active ? "Turn off" : "Turn on"}</button>
           <button class="btn danger-ghost sm" data-act="remove-login" data-id="${t.id}">Remove</button>` : ""}</div>
       </div>`).join("")}</div>
@@ -883,22 +923,173 @@
 
   function openEditLogin(id) {
     const p = S.logins.find((l) => l.id === id);
-    const what = p.role === "parent" ? "parent" : "teacher";
-    const o = modal(`<div class="modal-head"><h2>Edit ${what} name</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
+    const self = p.id === S.me.id;
+    const what = p.role === "parent" ? "parent login" : p.role === "admin" ? "admin" : "teacher";
+    const secretWord = p.role === "parent" ? "PIN" : "password";
+    const o = modal(`<div class="modal-head"><h2>Edit ${what}</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
       <label class="field"><span>${p.role === "parent" ? "Parent's name" : "Name"}</span><input class="input" id="lName" value="${esc(p.display_name)}"></label>
-      <div class="field"><span>Login ID</span><p class="mono" style="font-size:1.1rem">${esc(p.login_id)}</p>
-        <small>The Login ID stays the same, so ${p.id === S.me.id ? "you" : `${esc(fullName(p.display_name))}`} can keep logging in as before.</small></div>
+      ${self
+        ? `<div class="field"><span>Login ID</span><p class="mono" style="font-size:1.1rem">${esc(p.login_id)}</p><small>To change your own Login ID, use <b>Account</b> at the top of the page.</small></div>`
+        : `<label class="field"><span>Login ID</span><input class="input code" id="lId" value="${esc(p.login_id)}" autocapitalize="characters">
+            <small id="lIdNote">What they type to log in.</small></label>`}
       <p class="form-error" id="lErr" hidden></p>
       <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="lSave">Save</button></div>`);
+    const idBox = o.querySelector("#lId");
+    idBox?.addEventListener("input", () => {
+      idBox.value = cleanId(idBox.value);
+      const changed = idBox.value && idBox.value !== p.login_id;
+      const note = o.querySelector("#lIdNote");
+      note.innerHTML = changed ? `<b>Changing it gives ${esc(fullName(p.display_name))} a new one-time code.</b> Their current ${secretWord} stops working until they choose a new one.` : "What they type to log in.";
+      note.classList.toggle("warn-text", !!changed);
+      o.querySelector("#lSave").textContent = changed ? "Save and make new code" : "Save";
+    });
     o.querySelector("#lSave").addEventListener("click", async (e) => {
       const name = o.querySelector("#lName").value.trim();
+      const newId = idBox ? cleanId(idBox.value) : p.login_id;
       if (!name) return showErr(o, "#lErr", "Please enter a name.");
+      if (idProblem(newId)) return showErr(o, "#lErr", idProblem(newId));
       e.target.disabled = true;
       try {
-        await api.updateProfile(id, { display_name: name });
-        if (id === S.me.id) S.me.display_name = name;
-        closeModal(); await refresh(); toast("Name saved");
+        if (name !== p.display_name) { await api.updateProfile(id, { display_name: name }); if (self) S.me.display_name = name; }
+        if (newId !== p.login_id) {
+          const res = await api.changeLoginId(id, newId);
+          await refresh();
+          showSlip({ ...res, name, children: p.role === "parent" ? S.students.filter((s) => s.parent_id === id).map((s) => s.full_name) : [] }, p.role === "parent" ? "parent" : "staff");
+          return;
+        }
+        closeModal(); await refresh(); toast("Saved");
       } catch (x) { showErr(o, "#lErr", x.message); e.target.disabled = false; }
+    });
+  }
+
+  // ---------- Who's in this photo: add or remove children ----------
+  function openPhotoTags(p) {
+    const chosen = new Set(p.students);
+    let q = "";
+    const o = modal(`<div class="modal-head"><h2>Who's in this photo?</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
+      <p class="muted small">Tap to add or remove children. Each child's parents see the photo in their gallery.</p>
+      <input class="input" id="tgSearch" type="search" placeholder="Search names" aria-label="Search names">
+      <div class="kids" id="tgKids"></div>
+      <p class="selected-line" id="tgLine"></p>
+      <p class="form-error" id="tgErr" hidden></p>
+      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="tgSave">Save</button></div>`, { wide: true });
+    const draw = () => {
+      const list = S.students.filter((s) => !q || s.full_name.toLowerCase().includes(q));
+      o.querySelector("#tgKids").innerHTML = list.map((s) => {
+        const on = chosen.has(s.id);
+        const blocked = !s.consent && !on;
+        return `<button type="button" class="kid" data-id="${s.id}" aria-pressed="${on}" ${blocked ? "disabled" : ""}>${blob(s.full_name, s.id)}<span><b>${esc(s.full_name)}</b>${s.consent ? "" : `<small>No photo consent</small>`}</span></button>`;
+      }).join("") || `<p class="muted">No children match.</p>`;
+      const names = S.students.filter((s) => chosen.has(s.id)).map((s) => s.full_name);
+      o.querySelector("#tgLine").innerHTML = names.length ? `In this photo: <b>${esc(joinNames(names))}</b>` : "No one selected yet.";
+    };
+    draw();
+    o.querySelector("#tgSearch").addEventListener("input", (e) => { q = e.target.value.trim().toLowerCase(); draw(); });
+    o.querySelector("#tgKids").addEventListener("click", (e) => {
+      const b = e.target.closest(".kid"); if (!b || b.disabled) return;
+      chosen.has(b.dataset.id) ? chosen.delete(b.dataset.id) : chosen.add(b.dataset.id); draw();
+    });
+    o.querySelector("#tgSave").addEventListener("click", async (e) => {
+      const ids = S.students.filter((s) => chosen.has(s.id)).map((s) => s.id);
+      if (!ids.length) return showErr(o, "#tgErr", "Pick at least one child. To remove the photo completely, use Delete instead.");
+      e.target.disabled = true; e.target.textContent = "Saving…";
+      try {
+        await api.setPhotoStudents(p, ids);
+        const real = S.photos.find((x) => x.id === p.id);
+        if (real) real.students = [...ids];
+        p.students = [...ids];
+        closeModal();
+        if (LB) drawLightbox();
+        toast("Saved");
+      } catch (x) { showErr(o, "#tgErr", x.message); e.target.disabled = false; e.target.textContent = "Save"; }
+    });
+  }
+
+  // ---------- Laptop camera: take several photos in a row ----------
+  async function openWebcam() {
+    if (!navigator.mediaDevices?.getUserMedia) { toast("This browser can't use the camera. Use Choose photos instead.", "err"); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
+    catch (e) {
+      toast(e && e.name === "NotAllowedError" ? "Camera access was blocked. Allow the camera in your browser's address bar, then try again." : "No camera was found. Use Choose photos instead.", "err");
+      return;
+    }
+    const taken = [];
+    const o = modal(`<div class="modal-head"><h2>Take photos</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
+      <div class="cam"><video id="camVideo" autoplay playsinline muted></video><div class="cam-flash" id="camFlash"></div></div>
+      <div class="cam-strip" id="camStrip" aria-live="polite"></div>
+      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn soft" id="camShot">${CAM_ICON}Take photo</button><button class="btn" id="camDone" disabled>Use photos</button></div>`, { wide: true });
+    const video = o.querySelector("#camVideo");
+    video.srcObject = stream;
+    const stop = () => stream.getTracks().forEach((t) => t.stop());
+    new MutationObserver((_, obs) => { if (!document.body.contains(o)) { stop(); obs.disconnect(); } }).observe(document.body, { childList: true });
+    o.querySelector("#camShot").addEventListener("click", () => {
+      if (!video.videoWidth) return;
+      const c = document.createElement("canvas"); c.width = video.videoWidth; c.height = video.videoHeight;
+      c.getContext("2d").drawImage(video, 0, 0);
+      c.toBlob((b) => {
+        const f = new File([b], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
+        taken.push(f);
+        const fl = o.querySelector("#camFlash"); fl.classList.remove("on"); void fl.offsetWidth; fl.classList.add("on");
+        o.querySelector("#camStrip").insertAdjacentHTML("beforeend", `<img src="${URL.createObjectURL(b)}" alt="Photo ${taken.length}">`);
+        const done = o.querySelector("#camDone"); done.disabled = false; done.textContent = `Use ${plural(taken.length, "photo")}`;
+      }, "image/jpeg", 0.9);
+    });
+    o.querySelector("#camDone").addEventListener("click", () => { stop(); closeModal(false); addFiles(taken); });
+  }
+
+  // ---------- Account: everyone can change their own Login ID and PIN/password ----------
+  function openAccount() {
+    const me = S.me;
+    const parent = me.role === "parent";
+    const word = parent ? "PIN" : "password";
+    const num = parent ? 'inputmode="numeric" maxlength="6" pattern="[0-9]*"' : "";
+    const o = modal(`<div class="modal-head"><h2>Account</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
+      <div class="acct-who">${blob(me.display_name, me.id, "lg")}<div><b>${esc(me.display_name)}</b><p class="muted small">${{ admin: "Admin", teacher: "Teacher", parent: "Parent" }[me.role]} · Login ID <span class="mono">${esc(me.login_id)}</span></p></div></div>
+
+      <details class="acct-sec" id="secId"><summary>Change Login ID</summary>
+        <div class="acct-body">
+          <label class="field"><span>New Login ID</span><input class="input code" id="aId" placeholder="e.g. ${esc(suggestId(me.display_name) || "SASHA")}" autocapitalize="characters"><small>Letters and numbers only. Your ${word} stays the same.</small></label>
+          <label class="field"><span>Current ${word}</span><input class="input" id="aIdPw" type="password" autocomplete="current-password" ${num}><small>To confirm it's you.</small></label>
+          <p class="form-error" id="aIdErr" hidden></p>
+          <button class="btn block" id="aIdSave">Change Login ID</button>
+        </div></details>
+
+      <details class="acct-sec" id="secPw"><summary>Change ${word}</summary>
+        <div class="acct-body">
+          <label class="field"><span>Current ${word}</span><input class="input" id="aOld" type="password" autocomplete="current-password" ${num}></label>
+          <label class="field"><span>New ${parent ? "6-digit PIN" : "password"}</span><input class="input" id="aNew" type="password" autocomplete="new-password" ${num}><small>${parent ? "Avoid repeated digits and runs like 123456." : "At least 8 characters."}</small></label>
+          <label class="field"><span>Type it again</span><input class="input" id="aNew2" type="password" autocomplete="new-password" ${num}></label>
+          <p class="form-error" id="aPwErr" hidden></p>
+          <button class="btn block" id="aPwSave">Change ${word}</button>
+        </div></details>
+
+      <div class="modal-actions"><button class="btn danger-ghost" data-act-logout>Log out</button><button class="btn" data-close>Done</button></div>`);
+    o.querySelectorAll("details").forEach((d) => d.addEventListener("toggle", () => { if (d.open) { o.querySelectorAll("details").forEach((x) => { if (x !== d) x.open = false; }); d.querySelector("input")?.focus(); } }));
+    o.querySelector("#aId").addEventListener("input", (e) => { e.target.value = cleanId(e.target.value); });
+    o.querySelector("[data-act-logout]").addEventListener("click", () => { closeModal(false); actions.logout(); });
+    o.querySelector("#aIdSave").addEventListener("click", async (e) => {
+      const newId = cleanId(o.querySelector("#aId").value), pw = o.querySelector("#aIdPw").value.trim();
+      if (!newId) return showErr(o, "#aIdErr", "Please enter a new Login ID.");
+      if (idProblem(newId)) return showErr(o, "#aIdErr", idProblem(newId));
+      if (!pw) return showErr(o, "#aIdErr", `Please enter your current ${word}.`);
+      e.target.disabled = true; e.target.textContent = "Saving…";
+      try {
+        const { me: updated, loginId } = await api.changeMyLogin(newId, pw);
+        S.me = updated || { ...S.me, login_id: loginId };
+        closeModal(); await refresh();
+        toast(`Your Login ID is now ${loginId}`);
+      } catch (x) { showErr(o, "#aIdErr", x.message); e.target.disabled = false; e.target.textContent = "Change Login ID"; }
+    });
+    o.querySelector("#aPwSave").addEventListener("click", async (e) => {
+      const old = o.querySelector("#aOld").value.trim(), a = o.querySelector("#aNew").value, b = o.querySelector("#aNew2").value;
+      if (!old) return showErr(o, "#aPwErr", `Please enter your current ${word}.`);
+      const problem = parent ? pinProblem(a) : passwordProblem(a);
+      if (problem) return showErr(o, "#aPwErr", problem);
+      if (a !== b) return showErr(o, "#aPwErr", `The two new ${word}s don't match.`);
+      e.target.disabled = true; e.target.textContent = "Saving…";
+      try { await api.changeMySecret(old, a); closeModal(); toast(`${parent ? "PIN" : "Password"} changed`); }
+      catch (x) { showErr(o, "#aPwErr", x.message); e.target.disabled = false; e.target.textContent = `Change ${word}`; }
     });
   }
 
@@ -984,7 +1175,7 @@
       <div class="lb-bottom">
         <div class="lb-caption"><b>${fmtLong(p.taken_on)}</b>${note ? `<span>${esc(note)}</span>` : ""}${names.length && (isStaff() || S.students.length > 1) ? `<span>${esc(joinNames(names))}</span>` : ""}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${canDelete ? `<button class="btn danger-ghost sm" data-lb="delete">Delete</button>` : ""}
+          ${canDelete ? `<button class="btn ghost sm" data-lb="tags">Tag children</button><button class="btn danger-ghost sm" data-lb="delete">Delete</button>` : ""}
         </div>
       </div>`;
     el.querySelector('[data-lb="close"]').focus();
@@ -999,6 +1190,7 @@
     if (a === "prev") lbMove(-1);
     if (a === "next") lbMove(1);
     if (a === "download") downloadPhotos([p]);
+    if (a === "tags") openPhotoTags(p);
     if (a === "delete") {
       const ok = await confirmBox({ title: "Delete this photo?", text: `It will be removed for everyone, including parents. This can't be undone.`, ok: "Delete", danger: true });
       if (!ok || !LB) return;
@@ -1160,6 +1352,8 @@
       } catch (x) { fail(x); }
     },
     "edit-login": (el) => openEditLogin(el.dataset.id),
+    account: () => openAccount(),
+    webcam: () => openWebcam(),
     async "toggle-active"(el) {
       const p = S.logins.find((l) => l.id === el.dataset.id);
       try { await api.updateProfile(p.id, { active: !p.active }); await refresh(); toast(p.active ? `${p.login_id} can't log in now` : `${p.login_id} can log in again`); } catch (x) { fail(x); }
@@ -1188,7 +1382,7 @@
 
   $app.addEventListener("change", (e) => {
     const el = e.target;
-    if (el.id === "fileInput") { addFiles(el.files); el.value = ""; }
+    if (el.id === "fileInput" || el.id === "camInput") { addFiles(el.files); el.value = ""; }
     if (el.id === "upDate") {
       S.upDate = el.value || today();
       if (!S.noteTouched || !S.upNote) { S.upNote = S.lessons[S.upDate] || ""; S.noteTouched = false; }

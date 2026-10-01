@@ -415,3 +415,35 @@ input, select, textarea { font-size: max(16px, 1em); }   /* stops iPhones zoomin
 }
 .wrap:has(.selbar) { padding-bottom: 140px; }
 .thumb .tagline { max-height: calc(2.5em + 20px); overflow: hidden; }
+
+/* ---------- version 5: account ---------- */
+.bar .btn .blob.xs { margin-left: -8px; }
+.acct-who { display: flex; gap: 14px; align-items: center; }
+.acct-who b { font-size: 1.1rem; }
+.acct-sec { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.acct-sec summary { cursor: pointer; padding: 14px 16px; font-weight: 700; list-style: none; display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
+.acct-sec summary::-webkit-details-marker { display: none; }
+.acct-sec summary::after { content: "›"; font-size: 1.4rem; color: var(--muted); transition: transform .15s ease; }
+.acct-sec[open] summary::after { transform: rotate(90deg); }
+.acct-body { display: grid; gap: 12px; padding: 0 16px 16px; }
+.warn-text { color: var(--warn); }
+
+/* ---------- version 6: camera ---------- */
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.add-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.add-btns .btn { width: 100%; }
+.drop { padding: 18px 16px; }
+.cam { position: relative; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; max-width: 100%; }
+.cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.cam-flash.on { animation: flash .35s ease; }
+.cam-strip { display: flex; gap: 6px; overflow-x: auto; min-height: 0; }
+.cam-strip img { width: 64px; height: 48px; object-fit: cover; border-radius: 6px; flex: none; }
+@keyframes flash { from { opacity: .8; } to { opacity: 0; } }
+
+/* ---------- version 7: centred login screens ---------- */
+.login-head { justify-items: center; text-align: center; }
+.login-head .logo-tile { width: 170px; }
+.login-head p { max-width: 34ch; }
+.login-card > .small.muted { text-align: center; }
+.demo-box { text-align: center; }
