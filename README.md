@@ -80,15 +80,11 @@ docs/                        Web app, served by GitHub Pages
   styles.css
   config.js                  Studio settings and Supabase connection
   logo.png
-supabase/
-  schema.sql                 Database tables, access rules and photo storage (fresh installs)
-  updates/                   One-time updates for an existing install
-  functions/api/index.ts     Server function
 .github/workflows/
   daily-cleanup.yml          Removes expired photos and keeps the project active
-tools/
-  build-demo.py              Builds a single-file demo with sample data
 ```
+
+The Supabase database setup (`schema.sql`, plus one-time updates) and the server function (`functions/api/index.ts`) are not stored in this repository. They live in Supabase itself, with a copy kept in the project backup.
 
 ---
 
@@ -112,8 +108,8 @@ When `supabaseUrl` is empty, the app runs in demo mode with sample data.
 
 ### 1. Supabase
 1. Create a project in the **Southeast Asia (Singapore)** region.
-2. In **SQL Editor**, run the contents of `supabase/schema.sql`. Running it again resets all app data. (Existing installs: run the files in `supabase/updates/` instead; they keep your data.)
-3. In **Edge Functions**, create a function named `api` with the contents of `supabase/functions/api/index.ts`. Turn off **Verify JWT** for this function.
+2. In **SQL Editor**, run `schema.sql` from the project backup. Running it again resets all app data. For an existing install, run the one-time update files instead; they keep your data.
+3. In **Edge Functions**, create a function named `api` with the contents of `functions/api/index.ts` from the project backup. Turn off **Verify JWT** for this function.
 4. Under **Edge Functions → Secrets**, add:
    - `PIN_PEPPER`: a long random value. Do not change it once PINs are in use.
    - `CRON_SECRET`: a long random value, also used as the setup key.
