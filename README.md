@@ -1,89 +1,108 @@
-# Art Class Gallery
+<p align="center">
+  <img src="docs/logo.png" alt="Sasha & Lulu Atelier" width="160">
+</p>
 
-A private photo gallery web app for **Sasha & Lulu Atelier**. Teachers upload photos of the children's work, and each family logs in to see and download only their own children's photos.
+<h1 align="center">🎨 Art Class Gallery</h1>
 
-Built with plain HTML/CSS/JavaScript on GitHub Pages, with Supabase for the database, logins and photo storage.
+<p align="center">
+  A private photo gallery for <b>Sasha & Lulu Atelier</b>: teachers share what children create in class, and every family sees only their own children's work.
+</p>
 
-## Features
+<p align="center">
+  <img alt="Hosted on GitHub Pages" src="https://img.shields.io/badge/hosted%20on-GitHub%20Pages-222?logo=github">
+  <img alt="Supabase" src="https://img.shields.io/badge/backend-Supabase-3ECF8E?logo=supabase&logoColor=white">
+  <img alt="Built with Claude Code" src="https://img.shields.io/badge/built%20with-Claude%20Code-D97757">
+  <img alt="Runs on free plans" src="https://img.shields.io/badge/cost-free%20plans-12AAC2">
+</p>
 
-- One login per family, covering all of that family's children
-- Friendly Login IDs (e.g. `SASHA`) with a 6-digit PIN, set up with a one-time code
-- Photos grouped by lesson date, with a description for each child
-- Upload from the device camera or photo library, or drag and drop on desktop
-- Tag one or more children per photo, and retag later
-- Bulk select to download or delete
-- Photos removed automatically 90 days after each lesson
-- Works on phones, tablets and desktop
+---
 
-## Roles
+## What it does
 
-| | Parent | Teacher | Admin |
-|---|:---:|:---:|:---:|
-| View and download their own children's photos | ✅ | | |
-| View and download every child's photos | | ✅ | ✅ |
-| Upload photos and tag children | | ✅ | ✅ |
-| Add and edit photo descriptions | | ✅ | ✅ |
-| Retag or delete photos they uploaded | | ✅ | ✅ |
-| Retag or delete any photo | | | ✅ |
-| Add, edit and remove families and children | | | ✅ |
-| Add, edit and remove teachers and admins | | | ✅ |
-| Issue one-time codes and change others' Login IDs | | | ✅ |
-| Change own Login ID and PIN/password | ✅ | ✅ | ✅ |
+- **Teachers photograph the children's artwork during class** and tag the children in each photo, including group photos.
+- **Parents log in with a simple Login ID and PIN** to see and download only their own children's photos. One login covers every child in the family.
+- **Each child gets a short description** of what they worked on, so parents know the story behind the picture.
+- **Photos stay for 3 months**, then they're removed automatically to keep the children's pictures private.
+- **It works on phones**: teachers take photos with the phone's own camera, and parents save straight to their photo library.
 
-## Tech stack
+## Why it exists
 
-- **Front end:** vanilla HTML, CSS and JavaScript (no build step), hosted on GitHub Pages
-- **Back end:** [Supabase](https://supabase.com): Postgres with row-level security, Auth, private Storage, and one Edge Function (TypeScript/Deno)
-- **Scheduled job:** GitHub Actions (daily cleanup)
+Parents love seeing what their children make in class, but photos used to be sent through group chats. That meant every family's phone filled up with pictures of other people's children, and there was no simple way to find your own child's work later. This app gives each family a private gallery of just their children, keeps photos only as long as they're useful, and gives the studio one place to manage it all.
 
-## Security
+## Who it's for
 
-- Row-level security in Postgres limits parents to their own children's data.
-- Photos sit in a private bucket and load through signed links that expire after 1 hour.
-- PINs are checked by the server function, with a 15-minute lockout after 5 wrong attempts.
-- No personal data is stored in this repository.
+| | What they can do |
+|---|---|
+| **Parents** | View and download their own children's photos and descriptions, on any device |
+| **Teachers** | Upload and tag photos, write descriptions, browse every child's gallery, download in bulk, and delete their own uploads |
+| **Admins** | Everything teachers can do, plus manage families, children, teachers, photo consent and logins |
 
-## Project structure
+Everyone can change their own Login ID and PIN or password from **Account**.
 
+## How it's built
+
+A lightweight setup that runs entirely on free plans, with no servers to maintain.
+
+| Part | Technology | Where it runs |
+|---|---|---|
+| Web app | Plain HTML, CSS and JavaScript, with no build step | GitHub Pages (`docs/`) |
+| Database and access rules | Postgres with row-level security | Supabase |
+| Logins | Supabase Auth, behind a custom PIN layer with lockout | Supabase Edge Function (`api`) |
+| Photo storage | Private bucket, signed links that expire after 1 hour | Supabase Storage |
+| Daily cleanup | Removes photos older than 90 days, keeps the project active | GitHub Actions |
+
+### Privacy by design
+- **Data access:** database rules, not just the app, ensure parents can only read their own children's data. In a group photo, a parent sees only their own child's name.
+- **Photo consent:** children without recorded consent can't be tagged.
+- **Logins:** they start with a one-time code that expires in 7 days. Weak PINs are rejected, and 5 wrong tries pause the login for 15 minutes.
+- **Smaller photos:** photos are resized on the device before upload, so no full-resolution originals are stored.
+- **No personal data in this repository:** children's details and photos live only in Supabase.
+
+### Project structure
 ```
 docs/                       Web app (served by GitHub Pages)
 ├── index.html
 ├── app.js
 ├── styles.css
-├── config.js               Studio settings and Supabase connection
+├── config.js               Studio name, logo and Supabase connection
 └── logo.png
 .github/workflows/
-└── daily-cleanup.yml       Deletes expired photos and keeps Supabase active
+└── daily-cleanup.yml       Nightly cleanup and keep-alive
 ```
 
-The database schema and the Edge Function are deployed in Supabase and kept in the project backup, not in this repository.
+The database schema and the server function are deployed in Supabase, with a copy kept in the project backup.
 
-## Getting started
+## Quick start
 
-### Prerequisites
-- A Supabase account (free plan)
-- A GitHub account with Pages enabled
+**You'll need:** a free Supabase account and a GitHub account.
 
-### Setup
 1. **Supabase**
    - Create a project in the Singapore region.
    - Run `schema.sql` in the SQL Editor.
-   - Create an Edge Function named `api` from `functions/api/index.ts`, with **Verify JWT** turned off.
+   - Deploy `functions/api/index.ts` as an Edge Function named `api`, with **Verify JWT** turned off.
    - Add the secrets `PIN_PEPPER` and `CRON_SECRET`.
-   - Under Authentication, turn off public sign-ups.
-2. **Configure:** add your Supabase project URL and publishable key to `docs/config.js`.
-3. **Deploy:** in GitHub, go to Settings → Pages and deploy from branch `main`, folder `/docs`.
+   - Turn off public sign-ups.
+2. **Configure:** put the Supabase project URL and publishable key in `docs/config.js`.
+3. **Publish:** in GitHub, go to Settings → Pages and deploy from `main` / `docs`.
 4. **First admin:** open `https://<your-site>/#setup` and use `CRON_SECRET` as the setup key.
-5. **Daily cleanup:** add the GitHub Actions secrets `SUPABASE_URL`, `SUPABASE_KEY` and `CRON_SECRET`, then run the workflow once to test it.
+5. **Cleanup:** add the GitHub Actions secrets `SUPABASE_URL`, `SUPABASE_KEY` and `CRON_SECRET`, then run **Daily cleanup** once.
 
-Leave `supabaseUrl` empty in `config.js` to run the app in demo mode with sample data.
+With `supabaseUrl` left empty, the app runs as a demo with sample data.
 
-## Configuration
+After changing `app.js` or `styles.css`, raise the `?v=` number in `docs/index.html` so browsers load the new version.
 
-| Setting (`docs/config.js`) | Description |
-|---|---|
-| `studioName`, `shortName`, `logo` | Branding |
-| `supabaseUrl`, `supabaseKey` | Supabase project URL and publishable key |
-| `keepDays` | Days photos are kept after a lesson (default `90`) |
+## Status
 
-After changing `app.js` or `styles.css`, raise the `?v=` number in `docs/index.html` so browsers load the new files.
+**In use** at Sasha & Lulu Atelier.
+
+On the radar:
+- Notifying parents when new photos are added
+- An end-of-term "art journey" page for each child
+
+## Design and credits
+
+**Idea, product design and UX by Jessica**, a UX/product designer who also teaches art at Sasha & Lulu Atelier. She shaped the concept from her own classroom experience: the roles and permissions, the parent experience, privacy decisions like per-family access and the 3-month retention, and every round of design feedback.
+
+**Built with [Claude Code](https://claude.com/claude-code)** (Anthropic), which wrote the code, database rules and server function from Jessica's direction and iterated on each change she reviewed.
+
+Brand colours and logo © Sasha & Lulu Atelier.
