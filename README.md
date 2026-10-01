@@ -20,8 +20,7 @@ Teachers upload photos during lessons and tag the children in them. Parents log 
 - Log out from the same place
 
 **For teachers**
-- Tag one or more children, then **Take photo** with the camera or **Choose photos** from the gallery, and upload them
-- On phones and tablets, Take photo opens the camera directly. On laptops it opens a webcam view for taking several photos in a row
+- Tag one or more children, then tap the photo box to add photos. On phones and tablets it offers the device's own camera, photo library or files; on laptops, click to choose files or drag them in
 - One description per lesson date, set once and editable later
 - A gallery of every child's photos, filterable by child, with the same download options as parents
 - **Select** mode in the gallery: pick photos by hand, by date, or everything shown, then download or delete them in bulk
