@@ -447,3 +447,4 @@ input, select, textarea { font-size: max(16px, 1em); }   /* stops iPhones zoomin
 .login-head p { max-width: 34ch; }
 .login-card > .small.muted { text-align: center; }
 .demo-box { text-align: center; }
+.login-head .logo-tile, .login-head .mark { display: block; margin-inline: auto; }
