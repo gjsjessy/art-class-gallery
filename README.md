@@ -12,6 +12,7 @@
   <img alt="Hosted on GitHub Pages" src="https://img.shields.io/badge/hosted%20on-GitHub%20Pages-222?logo=github">
   <img alt="Supabase" src="https://img.shields.io/badge/backend-Supabase-3ECF8E?logo=supabase&logoColor=white">
   <img alt="Built with Claude Code" src="https://img.shields.io/badge/built%20with-Claude%20Code-D97757">
+  <img alt="Runs on free plans" src="https://img.shields.io/badge/cost-free%20plans-12AAC2">
 </p>
 
 ---
@@ -73,24 +74,39 @@ docs/                       Web app (served by GitHub Pages)
 
 The database schema and the server function are deployed in Supabase, with a copy kept in the project backup.
 
-## Quick start
+## Using the app
 
-**You'll need:** a free Supabase account and a GitHub account.
+**Live at** [gjsjessy.github.io/art-class-gallery](https://gjsjessy.github.io/art-class-gallery/). Parents and staff use the same link.
 
-1. **Supabase**
-   - Create a project in the Singapore region.
-   - Run `schema.sql` in the SQL Editor.
-   - Deploy `functions/api/index.ts` as an Edge Function named `api`, with **Verify JWT** turned off.
-   - Add the secrets `PIN_PEPPER` and `CRON_SECRET`.
-   - Turn off public sign-ups.
-2. **Configure:** put the Supabase project URL and publishable key in `docs/config.js`.
-3. **Publish:** in GitHub, go to Settings → Pages and deploy from `main` / `docs`.
-4. **First admin:** open `https://<your-site>/#setup` and use `CRON_SECRET` as the setup key.
-5. **Cleanup:** add the GitHub Actions secrets `SUPABASE_URL`, `SUPABASE_KEY` and `CRON_SECRET`, then run **Daily cleanup** once.
+### Admins: adding a family
+1. Go to **Students** → **Add family**.
+2. Enter the parent's name, choose a Login ID (e.g. `SASHA`), and add each child. Tick photo consent for each child.
+3. Give the parent the Login ID and the one-time code shown on screen. The code works for 7 days.
 
-With `supabaseUrl` left empty, the app runs as a demo with sample data.
+New teachers are added the same way under **Teachers**.
 
-After changing `app.js` or `styles.css`, raise the `?v=` number in `docs/index.html` so browsers load the new version.
+### Teachers: sharing class photos
+1. Open **Add photos** and tap the photo box. On a phone or iPad this opens the camera or photo library. On a laptop, drag photos in.
+2. Tag the children in the photos, then upload.
+3. In **Gallery**, open a photo to **Add description**, **Tag children**, **Download** or **Delete**. Use **Select** to download or delete many photos at once.
+
+### Parents: seeing their children's photos
+1. Log in with the Login ID and one-time code, then choose a 6-digit PIN.
+2. Browse photos by date, with each child's description.
+3. Tap a photo to download it, or use **Download all** for a whole day.
+
+### Common requests
+| Request | What to do |
+|---|---|
+| A parent forgot their PIN | **Students** → **New code** on their family, then send them the new code |
+| A parent wants a different Login ID | They can change it in **Account**, or an admin can change it with **Edit** |
+| A photo was tagged with the wrong child | Open the photo → **Tag children** and fix the selection |
+| A new child joins an existing family | **Students** → find the family → **+ Add another child to this login** |
+
+### Good to know
+- Photos and descriptions are removed automatically after **3 months**. Remind parents to download the ones they want to keep.
+- The cleanup runs every night at 3am Singapore time. GitHub emails you if it ever fails.
+- After updating `app.js` or `styles.css` on GitHub, raise the `?v=` number in `docs/index.html` so everyone gets the new version.
 
 ## Status
 
