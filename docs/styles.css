@@ -453,3 +453,20 @@ input, select, textarea { font-size: max(16px, 1em); }   /* stops iPhones zoomin
 .drop { display: grid; justify-items: center; gap: 6px; padding: 28px 16px; color: var(--muted); }
 .drop svg { width: 32px; height: 32px; color: var(--accent); }
 .drop b { font-size: 1.05rem; }
+
+/* ---------- version 9: tighter 8px corners on photos and boxes ---------- */
+:root { --radius: 8px; }
+.thumb, .preview, .kid, .child-entry, .acct-sec, .cam, .slip, .demo-box, .selbar { border-radius: 8px; }
+.lb-stage img { border-radius: 4px; }
+
+/* ---------- version 9: tighter 4px corners on photos ---------- */
+.thumb, .preview, .cam-strip img, .lb-stage img { border-radius: 4px; }
+
+/* ---------- version 10: descriptions per child ---------- */
+.note-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; color: var(--muted); }
+.note-list b { color: var(--ink); font-weight: 700; margin-right: 4px; }
+.note-list.compact { gap: 2px; color: #a3aabb; }
+.note-list.compact b { color: #f1f3f8; }
+.same-all { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.note-fields { display: grid; gap: 12px; }
+.note-fields .field > span { display: flex; align-items: center; gap: 8px; }

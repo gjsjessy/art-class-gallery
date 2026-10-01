@@ -146,15 +146,18 @@
 
       // Same call for parents and staff; the database rules decide what comes back.
       async loadGallery() {
-        const [students, rows, lessons] = await Promise.all([
+        const [students, rows, noteRows] = await Promise.all([
           sb.from("students").select("id, full_name, consent, notes, parent_id, created_at").order("full_name").then(must),
           sb.from("photos").select("id, path, thumb_path, taken_on, uploaded_by, created_at, photo_students(student_id)")
             .order("taken_on", { ascending: false }).order("created_at", { ascending: true }).limit(1000).then(must),
-          sb.from("lessons").select("taken_on, note").then(must),
+          sb.from("student_notes").select("taken_on, student_id, note").then((r) => {
+            if (r.error && /student_notes/.test(r.error.message || "")) throw new Error("Setup step needed: run the student-notes update (add-student-notes.sql) in Supabase → SQL Editor.");
+            return must(r);
+          }),
         ]);
         const photos = rows.map((p) => ({ ...p, students: (p.photo_students || []).map((t) => t.student_id) }));
         await attachThumbs(photos);
-        return { students, photos, lessons: Object.fromEntries(lessons.map((l) => [l.taken_on, l.note || ""])) };
+        return { students, photos, notes: Object.fromEntries(noteRows.map((n) => [`${n.taken_on}|${n.student_id}`, n.note || ""])) };
       },
       async fullUrl(p) {
         if (p._full && p._fullAt > Date.now() - 50 * 60000) return p._full;
@@ -165,8 +168,12 @@
       },
       async fetchBlob(p) { const r = await fetch(await this.fullUrl(p)); if (!r.ok) throw new Error("Couldn't download that photo. Please try again."); return r.blob(); },
 
-      async saveLessonNote(date, note, me) {
-        must(await sb.from("lessons").upsert({ taken_on: date, note: note || null, updated_by: me.id, updated_at: new Date().toISOString() }));
+      // entries: [{ student_id, note }]. Empty notes are removed.
+      async saveNotes(date, entries, me) {
+        const keep = entries.filter((e) => e.note);
+        const drop = entries.filter((e) => !e.note).map((e) => e.student_id);
+        if (keep.length) must(await sb.from("student_notes").upsert(keep.map((e) => ({ taken_on: date, student_id: e.student_id, note: e.note, updated_by: me.id, updated_at: new Date().toISOString() })), { onConflict: "taken_on,student_id" }));
+        if (drop.length) must(await sb.from("student_notes").delete().eq("taken_on", date).in("student_id", drop));
       },
       async upload({ date, files, studentIds, me, onProgress }) {
         for (let i = 0; i < files.length; i++) {
@@ -256,7 +263,7 @@
       { w: 8, note: "Clay pinch pots, then painting them", style: "pots" },
       { w: 11, note: "Printing with leaves and sponges", style: "prints" },
     ];
-    const lessons = {};
+    const notes = {};
     let rnd = 7;
     const rand = () => ((rnd = (rnd * 16807) % 2147483647) / 2147483647);
     const photos = [];
@@ -264,8 +271,8 @@
     for (const L of LESSONS) {
       const date = addDays(lastSat, -7 * L.w);
       if (date > T) continue;
-      lessons[date] = L.note;
       students.filter((s) => s.consent).forEach((s) => {
+        notes[`${date}|${s.id}`] = s.full_name === "Ethan Lim" && L.w === 0 ? "Watercolour koi fish (finished last week's piece)" : L.note;
         const n = 1 + Math.floor(rand() * 2);
         for (let k = 0; k < n; k++) photos.push(makePhoto(date, L.style, [s.id], ++pc * 97));
       });
@@ -397,14 +404,14 @@
           const ids = mine.map((s) => s.id);
           const ph = photos.filter((p) => p.students.some((id) => ids.includes(id)));
           const view = ph.map((p) => { const v = Object.create(p); v.students = p.students.filter((id) => ids.includes(id)); return v; });
-          return { students: mine.map((s) => ({ ...s })), photos: view, lessons: { ...lessons } };
+          return { students: mine.map((s) => ({ ...s })), photos: view, notes: Object.fromEntries(Object.entries(notes).filter(([k]) => ids.includes(k.split("|")[1]))) };
         }
-        return { students: students.map((s) => ({ ...s })).sort((a, b) => a.full_name.localeCompare(b.full_name)), photos: [...photos], lessons: { ...lessons } };
+        return { students: students.map((s) => ({ ...s })).sort((a, b) => a.full_name.localeCompare(b.full_name)), photos: [...photos], notes: { ...notes } };
       },
       async fullUrl(p) { if (p._url) return p._url; return p._fullData || (p._fullData = paint(p, 1200, 900, 0.85)); },
       async fetchBlob(p) { const r = await fetch(await this.fullUrl(p)); return r.blob(); },
 
-      async saveLessonNote(date, note) { lessons[date] = note; },
+      async saveNotes(date, entries) { await sleep(150); entries.forEach((e) => { const k = `${date}|${e.student_id}`; if (e.note) notes[k] = e.note; else delete notes[k]; }); },
       async upload({ date, files, studentIds, onProgress }) {
         for (let i = 0; i < files.length; i++) {
           const { full, thumb } = await prepareImage(files[i]);
@@ -495,7 +502,7 @@
     loaded: false,
     students: [],
     photos: [],
-    lessons: {},              // date → note
+    notes: {},                // "date|childId" → what that child worked on
     logins: [],               // admin: all logins
     kid: "all",               // gallery filter
     tab: "upload",            // staff tabs: upload | gallery | students | teachers
@@ -609,18 +616,30 @@
   const isTouch = () => matchMedia("(pointer: coarse)").matches || (navigator.maxTouchPoints > 1 && /Mac|iPad/.test(navigator.platform));
   const CAM_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>`;
   const canManage = (p) => isStaff() && (isAdmin() || p.uploaded_by === S.me.id);
+  const noteOf = (date, sid) => S.notes[`${date}|${sid}`] || "";
+  // Children shown for a date (respecting the child filter), with their descriptions.
+  function notesFor(date, photos) {
+    const ids = [...new Set(photos.flatMap((p) => p.students))].filter((id) => S.kid === "all" || id === S.kid);
+    return S.students.filter((s) => ids.includes(s.id)).map((s) => ({ id: s.id, name: s.full_name, note: noteOf(date, s.id) }));
+  }
+  function notesHtml(entries, { editable, compact } = {}) {
+    const withNote = entries.filter((e) => e.note);
+    if (!withNote.length) return editable ? `<p class="lesson-note small">No description yet</p>` : "";
+    const same = new Set(withNote.map((e) => e.note)).size === 1 && withNote.length === entries.length;
+    if (same || entries.length === 1) return `<p class="lesson-note">${esc(withNote[0].note)}</p>`;
+    return `<ul class="note-list${compact ? " compact" : ""}">${withNote.map((e) => `<li><b>${esc(e.name)}</b> ${esc(e.note)}</li>`).join("")}</ul>`;
+  }
   function galleryPhotos() { return S.kid === "all" ? S.photos : S.photos.filter((p) => p.students.includes(S.kid)); }
 
   function lessonList(photos, { showNames, editable }) {
     const lessons = lessonsOf(photos);
     if (!lessons.length) return "";
     return lessons.map((L) => {
-      const note = S.lessons[L.date] || "";
+      const entries = notesFor(L.date, L.photos);
       return `<section class="lesson" aria-label="Lesson on ${fmtLong(L.date)}">
         <div class="lesson-head">
           <div class="date"><h2>${fmtLong(L.date)}</h2>
-            ${note ? `<p class="lesson-note">${esc(note)}</p>` : editable ? `<p class="lesson-note small">No description yet</p>` : ""}
-            ${editable ? `<button type="button" class="linkish small" data-act="edit-note" data-date="${L.date}">${note ? "Edit description" : "Add description"}</button>` : ""}
+            ${editable ? "" : notesHtml(entries)}
           </div>
           <div class="lesson-tools">${expiryChip(L.date)}${S.selecting && editable
             ? (() => { const all = L.photos.every((p) => S.selected.has(p.id)); return `<button class="btn ${all ? "" : "soft"} sm" data-act="select-date" data-date="${L.date}" aria-pressed="${all}">${all ? "Unselect this date" : `Select all ${L.photos.length}`}</button>`; })()
@@ -682,7 +701,15 @@
     const chosen = S.students.filter((s) => S.tagged.has(s.id));
     const nFiles = S.files.length;
     const who = chosen.length === 1 ? fullName(chosen[0].full_name) : plural(chosen.length, "child", "children");
-    const existing = S.lessons[S.upDate];
+    // Suggest the description already saved for the selected children on this date.
+    const existingNotes = chosen.map((c) => noteOf(S.upDate, c.id));
+    const distinct = [...new Set(existingNotes.filter(Boolean))];
+    const mixed = distinct.length > 1 || (distinct.length === 1 && existingNotes.some((n) => !n) && chosen.length > 1);
+    if (!S.noteTouched) S.upNote = distinct.length === 1 && !mixed ? distinct[0] : "";
+    const noteHint = !chosen.length ? "Saved for each selected child on this date. Parents see it above that day's photos."
+      : mixed ? `<b>These children have different descriptions for this date.</b> Typing here gives them all the same one. To keep them different, leave this empty and edit each child in Gallery.`
+      : distinct.length ? `Already saved for ${chosen.length > 1 ? "these children" : esc(chosen[0].full_name)} on this date. Change it only if you want to update it.`
+      : `Saved for ${chosen.length > 1 ? "each selected child" : esc(chosen[0].full_name)} on this date. Different children can have different descriptions.`;
     return `
       <section class="step">
         <div class="step-title"><span class="step-n">1</span><h2>Who's in these photos?</h2></div>
@@ -706,8 +733,8 @@
         <div class="step-title"><span class="step-n">3</span><h2>Lesson</h2></div>
         <div class="form-grid">
           <label class="field"><span>Lesson date</span><input class="input" id="upDate" type="date" value="${S.upDate}" max="${today()}"></label>
-          <label class="field"><span>What they worked on</span><input class="input" id="upNote" value="${esc(S.upNote)}" placeholder="e.g. Oil pastel sunflowers">
-            <small>${existing ? "Already set for this date. Change it only if you want to update it for everyone." : "One description per lesson date. Parents see it above that day's photos."}</small></label>
+          <label class="field"><span>What ${chosen.length === 1 ? esc(chosen[0].full_name) : "they"} worked on</span><input class="input" id="upNote" value="${esc(S.upNote)}" placeholder="${mixed ? "Leave empty to keep each child's own" : "e.g. Oil pastel sunflowers"}">
+            <small>${noteHint}</small></label>
         </div>
       </section>
 
@@ -1058,17 +1085,34 @@
     });
   }
 
-  function openEditNote(date) {
+  function openEditNote(date, photo) {
+    const entries = photo
+      ? S.students.filter((s) => photo.students.includes(s.id)).map((s) => ({ id: s.id, name: s.full_name, note: noteOf(date, s.id) }))
+      : notesFor(date, galleryPhotos().filter((p) => p.taken_on === date));
+    const many = entries.length > 1;
     const o = modal(`<div class="modal-head"><h2>${fmtLong(date)}</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
-      <label class="field"><span>What they worked on</span><input class="input" id="nText" value="${esc(S.lessons[date] || "")}" placeholder="e.g. Oil pastel sunflowers"><small>Parents see this above the photos from this date.</small></label>
-      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="nSave">Save</button></div>`);
+      <p class="muted small">What each child worked on. Parents see their own child's description above that day's photos.</p>
+      ${many ? `<div class="same-all"><label class="field"><span>Same for everyone</span><input class="input" id="nAll" placeholder="e.g. Oil pastel sunflowers"></label><button type="button" class="btn soft" id="nApply">Apply to all</button></div>` : ""}
+      <div class="note-fields">${entries.map((e) => `<label class="field"><span>${blob(e.name, e.id, "xs")} ${esc(e.name)}</span><input class="input" data-sid="${e.id}" value="${esc(e.note)}" placeholder="What ${esc(e.name)} worked on"></label>`).join("")}</div>
+      <p class="form-error" id="nErr" hidden></p>
+      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="nSave">Save</button></div>`, { wide: true });
+    o.querySelector("#nApply")?.addEventListener("click", () => {
+      const v = o.querySelector("#nAll").value.trim();
+      o.querySelectorAll("[data-sid]").forEach((i) => { i.value = v; });
+    });
     o.querySelector("#nSave").addEventListener("click", async (e) => {
-      const note = o.querySelector("#nText").value.trim();
+      const changed = [...o.querySelectorAll("[data-sid]")].map((i) => ({ student_id: i.dataset.sid, note: i.value.trim() }))
+        .filter((x) => x.note !== noteOf(date, x.student_id));
+      if (!changed.length) { closeModal(); return; }
       e.target.disabled = true;
-      try { await api.saveLessonNote(date, note, S.me); S.lessons[date] = note; closeModal(); render(); toast("Description saved"); }
-      catch (x) { fail(x); e.target.disabled = false; }
+      try {
+        await api.saveNotes(date, changed, S.me);
+        changed.forEach((x) => { const k = `${date}|${x.student_id}`; if (x.note) S.notes[k] = x.note; else delete S.notes[k]; });
+        closeModal(); if (LB) drawLightbox(); toast(changed.length > 1 ? "Descriptions saved" : "Description saved");
+      } catch (x) { showErr(o, "#nErr", x.message); e.target.disabled = false; }
     });
   }
+
 
   function openAddStaff() {
     const o = modal(`<div class="modal-head"><h2>Add teacher</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
@@ -1129,7 +1173,7 @@
     const p = LB.list[LB.index];
     const canDelete = isStaff() && (isAdmin() || p.uploaded_by === S.me.id);
     const names = p.students.map(kidName).filter(Boolean);
-    const note = S.lessons[p.taken_on];
+    const pNotes = S.students.filter((s) => p.students.includes(s.id)).map((s) => ({ id: s.id, name: s.full_name, note: noteOf(p.taken_on, s.id) }));
     let el = document.getElementById("lb");
     if (!el) { el = document.createElement("div"); el.id = "lb"; el.className = "lightbox"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Photo viewer"); document.body.appendChild(el); }
     el.innerHTML = `
@@ -1138,8 +1182,9 @@
       <div class="lb-stage"><img id="lbImg" src="${esc(p.thumbUrl || "")}" alt="Photo from ${fmtLong(p.taken_on)}">
         ${LB.list.length > 1 ? `<button class="icon-btn lb-nav prev" data-lb="prev" aria-label="Previous photo">‹</button><button class="icon-btn lb-nav next" data-lb="next" aria-label="Next photo">›</button>` : ""}</div>
       <div class="lb-bottom">
-        <div class="lb-caption"><b>${fmtLong(p.taken_on)}</b>${note ? `<span>${esc(note)}</span>` : ""}${names.length && (isStaff() || S.students.length > 1) ? `<span>${esc(joinNames(names))}</span>` : ""}</div>
+        <div class="lb-caption"><b>${fmtLong(p.taken_on)}</b>${notesHtml(pNotes, { compact: true }).replace('class="lesson-note"', "")}${names.length && (isStaff() || S.students.length > 1) ? `<span>${esc(joinNames(names))}</span>` : ""}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${isStaff() ? `<button class="btn ghost sm" data-lb="note">${pNotes.some((n) => n.note) ? "Edit description" : "Add description"}</button>` : ""}
           ${canDelete ? `<button class="btn ghost sm" data-lb="tags">Tag children</button><button class="btn danger-ghost sm" data-lb="delete">Delete</button>` : ""}
         </div>
       </div>`;
@@ -1156,6 +1201,7 @@
     if (a === "next") lbMove(1);
     if (a === "download") downloadPhotos([p]);
     if (a === "tags") openPhotoTags(p);
+    if (a === "note") openEditNote(p.taken_on, p);
     if (a === "delete") {
       const ok = await confirmBox({ title: "Delete this photo?", text: `It will be removed for everyone, including parents. This can't be undone.`, ok: "Delete", danger: true });
       if (!ok || !LB) return;
@@ -1219,7 +1265,7 @@
   const actions = {
     async logout() {
       await api.logout();
-      Object.assign(S, { me: null, loaded: false, students: [], photos: [], lessons: {}, logins: [], kid: "all", search: "", files: [], progress: null, screen: "login", error: "", selecting: false });
+      Object.assign(S, { me: null, loaded: false, students: [], photos: [], notes: {}, logins: [], kid: "all", search: "", files: [], progress: null, screen: "login", error: "", selecting: false });
       S.selected.clear();
       S.tagged.clear(); render();
     },
@@ -1238,14 +1284,18 @@
     "clear-tags"() { S.tagged.clear(); render(); },
     unfile(el) { const f = S.files.splice(Number(el.dataset.i), 1)[0]; URL.revokeObjectURL(f.url); render(); },
     async upload() {
-      const files = S.files.map((f) => f.file), ids = [...S.tagged], date = S.upDate, note = S.upNote.trim();
+      const files = S.files.map((f) => f.file), ids = [...S.tagged], date = S.upDate, note = S.upNote.trim(), touched = S.noteTouched;
       S.progress = { done: 0, total: files.length }; render();
       try {
-        if (note !== (S.lessons[date] || "")) { await api.saveLessonNote(date, note, S.me); S.lessons[date] = note; }
+        const changed = ids.filter((id) => (note || touched) && noteOf(date, id) !== note);
+        if (changed.length) {
+          await api.saveNotes(date, changed.map((id) => ({ student_id: id, note })), S.me);
+          changed.forEach((id) => { if (note) S.notes[`${date}|${id}`] = note; else delete S.notes[`${date}|${id}`]; });
+        }
         await api.upload({ date, files, studentIds: ids, me: S.me, onProgress: (d) => { S.progress.done = d; render(); } });
         toast(`Uploaded ${plural(files.length, "photo")} for ${S.students.filter((s) => ids.includes(s.id)).map((s) => fullName(s.full_name)).join(", ")}`);
         S.files.forEach((f) => URL.revokeObjectURL(f.url));
-        S.files = []; S.tagged.clear(); S.progress = null;
+        S.files = []; S.tagged.clear(); S.progress = null; S.noteTouched = false;
         render(); refresh();
       } catch (x) { S.progress = null; render(); fail(x); }
     },
@@ -1349,7 +1399,7 @@
     if (el.id === "fileInput") { addFiles(el.files); el.value = ""; }
     if (el.id === "upDate") {
       S.upDate = el.value || today();
-      if (!S.noteTouched || !S.upNote) { S.upNote = S.lessons[S.upDate] || ""; S.noteTouched = false; }
+      if (!S.upNote) S.noteTouched = false;
       render();
     }
     if (el.id === "kidSelect") { S.kid = el.value; const shown = new Set(galleryPhotos().map((p) => p.id)); S.selected.forEach((id) => { if (!shown.has(id)) S.selected.delete(id); }); render(); }
@@ -1441,10 +1491,9 @@
     if (!S.me) return;
     try {
       const [g, logins] = await Promise.all([api.loadGallery(), isAdmin() ? api.listLogins() : Promise.resolve([])]);
-      S.students = g.students; S.photos = g.photos; S.lessons = g.lessons; S.logins = logins; S.loaded = true;
+      S.students = g.students; S.photos = g.photos; S.notes = g.notes; S.logins = logins; S.loaded = true;
       if (S.kid !== "all" && !S.students.some((s) => s.id === S.kid)) S.kid = "all";
       S.tagged.forEach((id) => { if (!S.students.some((s) => s.id === id)) S.tagged.delete(id); });
-      if (!S.noteTouched) S.upNote = S.lessons[S.upDate] || "";
     } catch (x) { fail(x); }
     // Redraw the page now (an open window stays on top and isn't affected).
     const searching = document.activeElement?.id === "kidSearch";
