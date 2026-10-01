@@ -9,25 +9,42 @@ Teachers upload photos during lessons and tag the children in them. Parents log 
 ## Features
 
 **For parents**
-- One login per family, using a friendly Login ID (e.g. `TIFFANY`) and a 6-digit PIN
+- One login per family, using a friendly Login ID (e.g. `SASHA`) and a 6-digit PIN
 - See every child on the login together, or one child at a time
 - Photos grouped by lesson date, with one description per lesson
-- Download a single photo or a whole lesson, straight to the phone's photo library
+- Download a single photo from the full-screen view, or a whole lesson with **Download all**, straight to the phone's photo library
 - Advance notice before photos are removed
 
+**For everyone (Account)**
+- Tap **Account** at the top to change your own Login ID or PIN/password. Your current PIN/password confirms it's you.
+- Log out from the same place
+
 **For teachers**
-- Tag one or more children, then take or choose photos and upload them
+- Tag one or more children, then **Take photo** with the camera or **Choose photos** from the gallery, and upload them
+- On phones and tablets, Take photo opens the camera directly. On laptops it opens a webcam view for taking several photos in a row
 - One description per lesson date, set once and editable later
 - A gallery of every child's photos, filterable by child, with the same download options as parents
+- **Select** mode in the gallery: pick photos by hand, by date, or everything shown, then download or delete them in bulk
 - Photos are resized on the device before upload, which keeps uploads fast and storage small
-- Delete photos they uploaded
+- **Tag children** on a photo after uploading: add more children or remove one, from the full-screen view
+- Delete photos they uploaded, always with a confirmation pop-up
 
 **For admins**
+- Everything teachers can do, plus delete any photo
 - Add families (a parent login with one or more children), and add children to an existing family
 - Add teachers and other admins
+- Edit parent, teacher and child names
+- Change anyone's Login ID. They get a new one-time code and choose a new PIN/password
 - Choose each Login ID, and generate one-time codes with a ready-to-send message
 - Reset forgotten PINs, and turn logins off or on
 - Record photo consent for each child
+- Lists update immediately after any change, with no page refresh
+
+**On phones**
+- Pop-ups open as sheets from the bottom and stay above the keyboard
+- Text boxes don't make the page zoom in
+- Tabs fill the screen width
+- Children's full names are shown everywhere (e.g. "Chen Yu Hua", not "Chen")
 
 ---
 
@@ -37,7 +54,7 @@ Teachers upload photos during lessons and tag the children in them. Parents log 
 - **Per-family access.** Database row-level security ensures parents only ever see their own children's photos. In group photos, a parent sees only their own children's names.
 - **Photo consent.** Children without recorded consent cannot be tagged in photos.
 - **One-time codes.** Codes are random, expire after 7 days, and work only once.
-- **PIN rules.** Easily guessed PINs, such as birthdays, repeated digits and number runs, are rejected.
+- **PIN rules.** Easily guessed PINs, such as repeated digits, number runs and common patterns, are rejected.
 - **Lockout.** After 5 incorrect attempts, the login pauses for 15 minutes.
 - **Short retention.** Photos are deleted automatically after 90 days.
 - **No personal data in this repository.** Children's details and photos live only in the Supabase database.
@@ -87,6 +104,8 @@ Settings are in `docs/config.js`:
 
 When `supabaseUrl` is empty, the app runs in demo mode with sample data.
 
+`docs/index.html` loads the other files with a version number (e.g. `app.js?v=6`). Raise it whenever `app.js` or `styles.css` changes, so browsers load the new version instead of an old saved copy.
+
 ---
 
 ## Setup
@@ -113,6 +132,20 @@ Under **Settings → Secrets and variables → Actions**, add `SUPABASE_URL`, `S
 
 ---
 
+## Everyday use
+
+**Adding a family (admin).** Go to **Students → Add family**. Enter the parent's name; the Login ID fills in from it (e.g. Sasha Tan → `SASHA`) and can be changed. Add each child and tick photo consent. A login slip appears with **Copy message** to send to the parent privately.
+
+**During a lesson (teacher).** Go to **Upload**, tap the children in the photos, take or choose the photos, check the lesson description, and upload.
+
+**Removing photos.** Open a photo and tap **Delete**, or use **Gallery → Select** to delete many at once.
+
+**Forgotten PIN.** Go to **Students**, find the family, and tap **New code**. The old PIN stops working and the parent chooses a new one with the code.
+
+**Changing a Login ID.** People can change their own under **Account** and keep their PIN. The admin can change anyone else's under **Edit**; this issues a new one-time code, which the admin sends to that person.
+
+---
+
 ## Free plan limits
 
 - **Storage.** The free plan includes 1 GB of storage. Each photo takes about 300 KB including its preview, so that's roughly 3,000 photos at a time. The 90-day cleanup keeps the total steady.
@@ -125,6 +158,8 @@ Under **Settings → Secrets and variables → Actions**, add `SUPABASE_URL`, `S
 
 | Problem | Fix |
 |---|---|
-| "Server is missing PIN_PEPPER or CRON_SECRET" | Add both secrets to the Edge Function and redeploy it. |
+| "Setup problem: add the PIN_PEPPER and CRON_SECRET secrets" | Add both secrets to the Edge Function and redeploy it. |
+| The app still looks like an older version | Raise the `?v=` number in `docs/index.html`, or open the site in a private window. |
+| Daily cleanup fails within seconds | Check the three GitHub Actions secrets. `SUPABASE_URL` must end in `.supabase.co`. |
 | Adding a child fails with an email error | Add the Edge Function secret `LOGIN_EMAIL_DOMAIN` = `example.com`. Logins use internal placeholder addresses that never receive email. |
 | Photos stop loading after a long time open | Refresh the page. Photo links expire after 1 hour. |
