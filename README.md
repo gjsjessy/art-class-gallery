@@ -102,7 +102,7 @@ On the radar:
 
 ## Design and credits
 
-**Idea, product design and UX by Jessica**, a UX/product designer who also teaches art at Sasha & Lulu Atelier. She shaped the concept from her own classroom experience: the roles and permissions, the parent experience, privacy decisions like per-family access and the 3-month retention, and every round of design feedback.
+**Idea, product design and UX by Gabriela Jessica Susilo**, a UX/product designer who also teaches art at Sasha & Lulu Atelier. She shaped the concept from her own classroom experience: the roles and permissions, the parent experience, privacy decisions like per-family access and the 3-month retention, and every round of design feedback.
 
 **Built with [Claude Code](https://claude.com/claude-code)** (Anthropic), which wrote the code, database rules and server function from Jessica's direction and iterated on each change she reviewed.
 
