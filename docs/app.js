@@ -545,8 +545,8 @@
   function viewLogin() {
     const d = api.demoLogins;
     return `<main class="login"><div class="login-card">
-      <div class="login-head">${logoBlock()}<h1>Parent Gallery</h1>
-        <p class="muted">Photos of your child's art adventures in class. Teachers log in here too.</p></div>
+      <div class="login-head">${logoBlock()}<h1>Art Journey</h1>
+        <p class="muted">Follow your child's creative adventures, one class at a time.</p></div>
       <form class="panel" data-form="login" autocomplete="on" novalidate>
         <label class="field"><span>Login ID</span>
           <input class="input code" id="loginId" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="e.g. SASHA" required></label>
@@ -563,7 +563,7 @@
           <button class="btn soft sm" data-act="demo" data-who="admin">Admin</button></div>
         <p class="demo-first">Parent login has two children. First login as a new parent: ID <code>${d.first[0]}</code>, code <code>${fmtCode(d.first[1])}</code>
           <button type="button" class="linkish" data-act="demo" data-who="first">Fill in</button></p></div>` : ""}
-      <p class="small muted">Forgot your PIN? Ask the studio for a new one-time code.</p>
+      <p class="small muted">Teachers log in here too. Forgot your PIN? Ask the studio for a new one-time code.</p>
     </div></main>`;
   }
 
@@ -673,7 +673,7 @@
     return topBar() + `<main class="wrap">
       <section class="child-card">
         <div class="blob-stack">${kids.map((s) => blob(s.full_name, s.id, "lg")).join("")}</div>
-        <div><p class="label">Parent Gallery</p><h1>${esc(names || "Your children")}</h1></div>
+        <div><p class="label">Art Journey</p><h1>${esc(names || "Your children")}</h1></div>
       </section>
       ${kids.length > 1 ? kidChips() : ""}
       <p class="keep-note"><span>Photos stay here for <b>3 months</b> after each lesson, then they're removed to keep your children's pictures private. ${soon ? `<b>${plural(soon, "photo")} will be removed in the next 2 weeks.</b>` : "Download the ones you want to keep."}</span></p>
@@ -1146,7 +1146,7 @@
       : `Hi ${fullName(res.name)}! Here's your teacher login for ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own password.`;
     const o = modal(`<div class="modal-head"><h2>Login for ${esc(res.name)}</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
       <div class="slip">
-        <p class="label">${esc(CFG.studioName)} · ${kind === "parent" ? "Parent Gallery" : "Teacher login"}</p>
+        <p class="label">${esc(CFG.studioName)} · ${kind === "parent" ? "Art Journey" : "Teacher login"}</p>
         <div class="slip-grid">
           <div><p class="label">Login ID</p><p class="slip-val">${esc(res.loginId)}</p></div>
           <div><p class="label">One-time code</p><p class="slip-val">${fmtCode(res.code)}</p></div>
