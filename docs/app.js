@@ -694,13 +694,11 @@
 
       <section class="step">
         <div class="step-title"><span class="step-n">2</span><h2>Add photos</h2></div>
-        <div class="add-btns">
-          ${isTouch() ? `<label class="btn big" for="camInput">${CAM_ICON}Take photo</label><input type="file" id="camInput" accept="image/*" capture="environment" class="vh">`
-                      : `<button type="button" class="btn big" data-act="webcam">${CAM_ICON}Take photo</button>`}
-          <label class="btn soft big" for="fileInput">Choose photos</label><input type="file" id="fileInput" accept="image/*" multiple class="vh">
-        </div>
-        ${isTouch() ? `<p class="small muted">Take photo opens the camera. After each photo, tap Take photo again for the next one.</p>`
-          : `<label class="drop" id="drop" for="fileInput"><b>Or drop photos here</b><span class="small">Drag files from your computer into this box.</span></label>`}
+        <label class="drop" id="drop" for="fileInput">${CAM_ICON}
+          <b>${isTouch() ? "Tap to take or choose photos" : "Click to choose photos, or drop them here"}</b>
+          <span class="small">${isTouch() ? "Your phone asks whether to use the camera, your photo library or files." : "Drag photos from your computer into this box."}</span>
+        </label>
+        <input type="file" id="fileInput" accept="image/*" multiple class="vh">
         ${nFiles ? `<div class="previews">${S.files.map((f, i) => `<div class="preview"><img src="${f.url}" alt="Photo ${i + 1}"><button type="button" data-act="unfile" data-i="${i}" aria-label="Remove photo ${i + 1}">×</button></div>`).join("")}</div>` : ""}
       </section>
 
@@ -1003,39 +1001,6 @@
         toast("Saved");
       } catch (x) { showErr(o, "#tgErr", x.message); e.target.disabled = false; e.target.textContent = "Save"; }
     });
-  }
-
-  // ---------- Laptop camera: take several photos in a row ----------
-  async function openWebcam() {
-    if (!navigator.mediaDevices?.getUserMedia) { toast("This browser can't use the camera. Use Choose photos instead.", "err"); return; }
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }); }
-    catch (e) {
-      toast(e && e.name === "NotAllowedError" ? "Camera access was blocked. Allow the camera in your browser's address bar, then try again." : "No camera was found. Use Choose photos instead.", "err");
-      return;
-    }
-    const taken = [];
-    const o = modal(`<div class="modal-head"><h2>Take photos</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
-      <div class="cam"><video id="camVideo" autoplay playsinline muted></video><div class="cam-flash" id="camFlash"></div></div>
-      <div class="cam-strip" id="camStrip" aria-live="polite"></div>
-      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn soft" id="camShot">${CAM_ICON}Take photo</button><button class="btn" id="camDone" disabled>Use photos</button></div>`, { wide: true });
-    const video = o.querySelector("#camVideo");
-    video.srcObject = stream;
-    const stop = () => stream.getTracks().forEach((t) => t.stop());
-    new MutationObserver((_, obs) => { if (!document.body.contains(o)) { stop(); obs.disconnect(); } }).observe(document.body, { childList: true });
-    o.querySelector("#camShot").addEventListener("click", () => {
-      if (!video.videoWidth) return;
-      const c = document.createElement("canvas"); c.width = video.videoWidth; c.height = video.videoHeight;
-      c.getContext("2d").drawImage(video, 0, 0);
-      c.toBlob((b) => {
-        const f = new File([b], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
-        taken.push(f);
-        const fl = o.querySelector("#camFlash"); fl.classList.remove("on"); void fl.offsetWidth; fl.classList.add("on");
-        o.querySelector("#camStrip").insertAdjacentHTML("beforeend", `<img src="${URL.createObjectURL(b)}" alt="Photo ${taken.length}">`);
-        const done = o.querySelector("#camDone"); done.disabled = false; done.textContent = `Use ${plural(taken.length, "photo")}`;
-      }, "image/jpeg", 0.9);
-    });
-    o.querySelector("#camDone").addEventListener("click", () => { stop(); closeModal(false); addFiles(taken); });
   }
 
   // ---------- Account: everyone can change their own Login ID and PIN/password ----------
@@ -1353,7 +1318,6 @@
     },
     "edit-login": (el) => openEditLogin(el.dataset.id),
     account: () => openAccount(),
-    webcam: () => openWebcam(),
     async "toggle-active"(el) {
       const p = S.logins.find((l) => l.id === el.dataset.id);
       try { await api.updateProfile(p.id, { active: !p.active }); await refresh(); toast(p.active ? `${p.login_id} can't log in now` : `${p.login_id} can log in again`); } catch (x) { fail(x); }
@@ -1382,7 +1346,7 @@
 
   $app.addEventListener("change", (e) => {
     const el = e.target;
-    if (el.id === "fileInput" || el.id === "camInput") { addFiles(el.files); el.value = ""; }
+    if (el.id === "fileInput") { addFiles(el.files); el.value = ""; }
     if (el.id === "upDate") {
       S.upDate = el.value || today();
       if (!S.noteTouched || !S.upNote) { S.upNote = S.lessons[S.upDate] || ""; S.noteTouched = false; }
