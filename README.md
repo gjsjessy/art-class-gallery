@@ -12,7 +12,6 @@
   <img alt="Hosted on GitHub Pages" src="https://img.shields.io/badge/hosted%20on-GitHub%20Pages-222?logo=github">
   <img alt="Supabase" src="https://img.shields.io/badge/backend-Supabase-3ECF8E?logo=supabase&logoColor=white">
   <img alt="Built with Claude Code" src="https://img.shields.io/badge/built%20with-Claude%20Code-D97757">
-  <img alt="Runs on free plans" src="https://img.shields.io/badge/cost-free%20plans-12AAC2">
 </p>
 
 ---
