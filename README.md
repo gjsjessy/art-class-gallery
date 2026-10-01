@@ -11,7 +11,7 @@ Teachers upload photos during lessons and tag the children in them. Parents log 
 **For parents**
 - One login per family, using a friendly Login ID (e.g. `SASHA`) and a 6-digit PIN
 - See every child on the login together, or one child at a time
-- Photos grouped by lesson date, with one description per lesson
+- Photos grouped by lesson date, with a description of what each child worked on
 - Download a single photo from the full-screen view, or a whole lesson with **Download all**, straight to the phone's photo library
 - Advance notice before photos are removed
 
@@ -21,7 +21,7 @@ Teachers upload photos during lessons and tag the children in them. Parents log 
 
 **For teachers**
 - Tag one or more children, then tap the photo box to add photos. On phones and tablets it offers the device's own camera, photo library or files; on laptops, click to choose files or drag them in
-- One description per lesson date, set once and editable later
+- A description per child per lesson date (children can do different things on the same day), shown under each photo and editable from the full-screen view with **Edit description**
 - A gallery of every child's photos, filterable by child, with the same download options as parents
 - **Select** mode in the gallery: pick photos by hand, by date, or everything shown, then download or delete them in bulk
 - Photos are resized on the device before upload, which keeps uploads fast and storage small
@@ -81,7 +81,8 @@ docs/                        Web app, served by GitHub Pages
   config.js                  Studio settings and Supabase connection
   logo.png
 supabase/
-  schema.sql                 Database tables, access rules and photo storage
+  schema.sql                 Database tables, access rules and photo storage (fresh installs)
+  updates/                   One-time updates for an existing install
   functions/api/index.ts     Server function
 .github/workflows/
   daily-cleanup.yml          Removes expired photos and keeps the project active
@@ -111,7 +112,7 @@ When `supabaseUrl` is empty, the app runs in demo mode with sample data.
 
 ### 1. Supabase
 1. Create a project in the **Southeast Asia (Singapore)** region.
-2. In **SQL Editor**, run the contents of `supabase/schema.sql`. Running it again resets all app data.
+2. In **SQL Editor**, run the contents of `supabase/schema.sql`. Running it again resets all app data. (Existing installs: run the files in `supabase/updates/` instead; they keep your data.)
 3. In **Edge Functions**, create a function named `api` with the contents of `supabase/functions/api/index.ts`. Turn off **Verify JWT** for this function.
 4. Under **Edge Functions → Secrets**, add:
    - `PIN_PEPPER`: a long random value. Do not change it once PINs are in use.
