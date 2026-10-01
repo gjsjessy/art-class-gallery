@@ -718,6 +718,7 @@
           <div class="name"><p class="label">Parent login</p><b>${esc(p.display_name)}</b>
             <div class="sub"><span class="mono">${esc(p.login_id)}</span>${statusChip(p)}</div></div>
           <div class="ctrls">
+            <button class="btn ghost sm" data-act="edit-login" data-id="${p.id}">Edit name</button>
             <button class="btn ghost sm" data-act="reset" data-id="${p.id}">New code</button>
             <button class="btn ghost sm" data-act="toggle-active" data-id="${p.id}">${p.active ? "Turn off" : "Turn on"}</button>
             <button class="btn danger-ghost sm" data-act="remove-login" data-id="${p.id}">Remove</button>
@@ -739,7 +740,7 @@
         ${blob(t.display_name, t.id)}
         <div class="name"><b>${esc(t.display_name)}${t.id === S.me.id ? " (you)" : ""}</b>
           <div class="sub"><span class="chip ${t.role === "admin" ? "accent" : ""}">${t.role === "admin" ? "Admin" : "Teacher"}</span><span class="mono">${esc(t.login_id)}</span>${statusChip(t)}</div></div>
-        <div class="ctrls">${t.id !== S.me.id ? `<button class="btn ghost sm" data-act="reset" data-id="${t.id}">New code</button>
+        <div class="ctrls"><button class="btn ghost sm" data-act="edit-login" data-id="${t.id}">Edit name</button>${t.id !== S.me.id ? `<button class="btn ghost sm" data-act="reset" data-id="${t.id}">New code</button>
           <button class="btn ghost sm" data-act="toggle-active" data-id="${t.id}">${t.active ? "Turn off" : "Turn on"}</button>
           <button class="btn danger-ghost sm" data-act="remove-login" data-id="${t.id}">Remove</button>` : ""}</div>
       </div>`).join("")}</div>
@@ -877,6 +878,27 @@
       const ok = await confirmBox({ title: `Remove ${s.full_name}?`, text: `Photos that show only ${esc(fullName(s.full_name))} are deleted too. Group photos stay for the other children. This can't be undone.`, ok: "Remove", danger: true });
       if (!ok) return;
       try { await api.deleteChild(id); if (S.kid === id) S.kid = "all"; await refresh(); toast(`${s.full_name} removed`); } catch (x) { fail(x); }
+    });
+  }
+
+  function openEditLogin(id) {
+    const p = S.logins.find((l) => l.id === id);
+    const what = p.role === "parent" ? "parent" : "teacher";
+    const o = modal(`<div class="modal-head"><h2>Edit ${what} name</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
+      <label class="field"><span>${p.role === "parent" ? "Parent's name" : "Name"}</span><input class="input" id="lName" value="${esc(p.display_name)}"></label>
+      <div class="field"><span>Login ID</span><p class="mono" style="font-size:1.1rem">${esc(p.login_id)}</p>
+        <small>The Login ID stays the same, so ${p.id === S.me.id ? "you" : `${esc(fullName(p.display_name))}`} can keep logging in as before.</small></div>
+      <p class="form-error" id="lErr" hidden></p>
+      <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="lSave">Save</button></div>`);
+    o.querySelector("#lSave").addEventListener("click", async (e) => {
+      const name = o.querySelector("#lName").value.trim();
+      if (!name) return showErr(o, "#lErr", "Please enter a name.");
+      e.target.disabled = true;
+      try {
+        await api.updateProfile(id, { display_name: name });
+        if (id === S.me.id) S.me.display_name = name;
+        closeModal(); await refresh(); toast("Name saved");
+      } catch (x) { showErr(o, "#lErr", x.message); e.target.disabled = false; }
     });
   }
 
@@ -1137,6 +1159,7 @@
         showSlip({ ...res, children: staff ? [] : S.students.filter((s) => s.parent_id === p.id).map((s) => s.full_name) }, staff ? "staff" : "parent");
       } catch (x) { fail(x); }
     },
+    "edit-login": (el) => openEditLogin(el.dataset.id),
     async "toggle-active"(el) {
       const p = S.logins.find((l) => l.id === el.dataset.id);
       try { await api.updateProfile(p.id, { active: !p.active }); await refresh(); toast(p.active ? `${p.login_id} can't log in now` : `${p.login_id} can log in again`); } catch (x) { fail(x); }
