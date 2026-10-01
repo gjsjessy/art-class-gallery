@@ -500,3 +500,10 @@ h1 { letter-spacing: .02em; }
 .brand, .tagline, .step-n { font-weight: 500; }
 .tagline { letter-spacing: .12em; }
 .label { letter-spacing: .12em; }
+
+/* ---------- version 14: full-screen photo always fits the screen (width and height) ---------- */
+.lightbox { height: 100vh; height: 100dvh; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+.lb-stage { min-height: 0; overflow: hidden; padding: 0; }
+.lb-stage img { position: absolute; inset: 0; margin: auto; width: auto; height: auto; max-width: calc(100% - 16px); max-height: 100%; object-fit: contain; }
+.lb-nav { z-index: 1; }
+.lb-bottom { position: relative; z-index: 1; background: #0b0d13; }
