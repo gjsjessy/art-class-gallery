@@ -507,3 +507,91 @@ h1 { letter-spacing: .02em; }
 .lb-stage img { position: absolute; inset: 0; margin: auto; width: auto; height: auto; max-width: calc(100% - 16px); max-height: 100%; object-fit: contain; }
 .lb-nav { z-index: 1; }
 .lb-bottom { position: relative; z-index: 1; background: #0b0d13; }
+
+/* ---------- version 15: app-style bottom navigation on phones ---------- */
+.bottom-nav { display: none; }
+@media (max-width: 640px), (pointer: coarse) and (max-width: 900px) {
+  .bar.has-bn .tabs { display: none; }
+  .bar.has-bn .bar-inner > .btn { display: none; }        /* Account moves to the bottom bar */
+  .bottom-nav {
+    display: grid; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    grid-template-columns: repeat(5, 1fr); align-items: end;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 16px rgba(18, 60, 70, .06);
+  }
+  .bottom-nav.three { grid-template-columns: repeat(3, 1fr); }
+  .bn-item, .bn-add {
+    border: 0; background: none; color: var(--muted); cursor: pointer; padding: 4px 2px;
+    display: grid; justify-items: center; gap: 3px; min-height: 52px; align-content: end;
+    font-size: .7rem; font-weight: 600; letter-spacing: .01em; -webkit-tap-highlight-color: transparent;
+  }
+  .bn-item svg { width: 24px; height: 24px; }
+  .bn-item[aria-current="page"] { color: var(--accent); }
+  .bn-item[aria-current="page"] svg { stroke-width: 2.2; }
+  .bn-circle {
+    width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center;
+    margin-top: -30px; background: var(--brand-red); color: #fff;
+    box-shadow: 0 6px 16px rgba(234, 44, 38, .35), 0 0 0 5px var(--surface);
+    transition: transform .12s ease;
+  }
+  .bn-circle svg { width: 28px; height: 28px; }
+  .bn-add:active .bn-circle { transform: scale(.94); }
+  .bn-add[aria-current="page"] { color: var(--ink); }
+  .bn-add > span:last-child { white-space: nowrap; }
+  /* leave room for the bar */
+  .wrap:has(~ .bottom-nav) { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+  .selbar { bottom: calc(84px + env(safe-area-inset-bottom, 0px)) !important; }
+  .wrap:has(.selbar) { padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+  .bn-item span:last-child { max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: center; line-height: 1.15; }
+  /* parents: children become full-width tabs */
+  .chips { flex-wrap: nowrap; gap: 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 8px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips .pick { flex: 1 0 auto; justify-content: center; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; min-height: 48px; padding: 6px 12px; color: var(--muted); }
+  .chips .pick:first-child { padding-left: 12px; }
+  .chips .pick[aria-pressed="true"] { background: none; color: var(--ink); border-bottom-color: var(--accent); }
+}
+
+/* ---------- version 16: dropdowns with a roomier arrow ---------- */
+select.input {
+  -webkit-appearance: none; appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2356696e' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 16px center; background-size: 12px 8px;
+}
+
+/* ---------- version 17: Account menu, each change opens on its own ---------- */
+.acct-menu { display: grid; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.acct-row { display: flex; justify-content: space-between; align-items: center; min-height: 52px; padding: 0 16px; border: 0; background: var(--surface); color: var(--ink); font-weight: 600; text-align: left; cursor: pointer; }
+.acct-row + .acct-row { border-top: 1px solid var(--line); }
+.acct-row:hover { background: var(--surface-2); }
+.acct-row span:last-child { font-size: 1.4rem; color: var(--muted); line-height: 1; }
+
+/* ---------- version 18: page behind pop-ups stays still ---------- */
+.overlay, .modal, .lightbox { overscroll-behavior: contain; }
+
+/* ---------- version 19: a line between dates, not between a date and its photos ---------- */
+.lesson-head { border-bottom: 0; padding-bottom: 0; }
+.lesson + .lesson { border-top: 1px solid var(--line); padding-top: 24px; }
+
+/* ---------- version 20: Account as a menu (sheet above the bottom bar on phones, drop-down on laptops) ---------- */
+.acct-row { gap: 12px; justify-content: flex-start; }
+.acct-row svg { width: 20px; height: 20px; flex: none; color: var(--muted); }
+.acct-row span:nth-of-type(1) { flex: 1; }
+.acct-row.danger, .acct-row.danger svg { color: var(--danger); }
+.acct-drop {
+  position: fixed; z-index: 65; width: 300px; max-width: calc(100vw - 24px);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  padding: 14px; display: grid; gap: 12px; animation: fade .12s ease;
+}
+.acct-drop .acct-who .blob.lg { width: 48px; height: 48px; font-size: 1rem; }
+.acct-drop .acct-menu { border: 0; border-radius: 0; margin: 0 -14px -14px; border-top: 1px solid var(--line); }
+.acct-drop .acct-row { min-height: 46px; }
+@media (max-width: 640px), (pointer: coarse) and (max-width: 900px) {
+  .overlay.acct-sheet { height: calc(var(--vvh, 100vh) - var(--bn-h, 0px)); z-index: 25; }
+  .overlay.acct-sheet .modal { border-radius: 20px 20px 0 0; padding-bottom: 16px; box-shadow: 0 -8px 24px rgba(0, 0, 0, .12); }
+}
+.acct-row.danger span:last-child { font-size: inherit; color: inherit; line-height: inherit; }

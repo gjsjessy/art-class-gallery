@@ -534,7 +534,7 @@
 
   function topBar(extra = "") {
     const role = { admin: "Admin", teacher: "Teacher", parent: "" }[S.me?.role] || "";
-    return `<header class="bar"><div class="bar-inner">
+    return `<header class="bar has-bn"><div class="bar-inner">
       <div class="brand">${wordmark()}${DEMO ? `<span class="demo-flag">DEMO</span>` : ""}</div>
       <span class="who">${esc(S.me?.display_name || "")}${role ? ` · ${role}` : ""}</span>
       <button class="btn ghost sm" data-act="account" aria-label="Account: ${esc(S.me?.display_name || "")}">${blob(S.me?.display_name || "?", S.me?.id || "", "xs")}Account</button>
@@ -678,7 +678,14 @@
       ${kids.length > 1 ? kidChips() : ""}
       <p class="keep-note"><span>Photos stay here for <b>3 months</b> after each lesson, then they're removed to keep your children's pictures private. ${soon ? `<b>${plural(soon, "photo")} will be removed in the next 2 weeks.</b>` : "Download the ones you want to keep."}</span></p>
       ${lessonList(shown, { showNames: kids.length > 1 }) || `<div class="empty"><h2>No photos yet</h2><p>After the next lesson, the teacher's photos will appear here.</p></div>`}
-    </main>`;
+    </main>` + parentNav();
+  }
+
+  // Phones: parents get a simple bottom bar (Gallery, Account); children are tabs at the top of the page.
+  function parentNav() {
+    const acct = `<button class="bn-item" data-act="account">${ICONS.account}<span>Account</span></button>`;
+    const gal = `<button class="bn-item" data-act="to-top" aria-current="page">${ICONS.gallery}<span>Gallery</span></button>`;
+    return `<nav class="bottom-nav" style="grid-template-columns:repeat(2,1fr)" aria-label="Main">${gal}${acct}</nav>`;
   }
 
   // ---------- staff ----------
@@ -688,7 +695,25 @@
     const nav = `<nav class="tabs" role="tablist">${tabs.map(([k, label, n, short]) =>
       `<button class="tab" role="tab" aria-selected="${S.tab === k}" data-act="tab" data-tab="${k}"><span class="t-long">${label}</span><span class="t-short">${short}</span>${n ? `<span class="count">${n}</span>` : ""}</button>`).join("")}</nav>`;
     const body = !S.loaded ? spinner() : { upload: viewUpload, gallery: viewGallery, students: viewStudents, teachers: viewTeachers }[S.tab]();
-    return topBar(nav) + `<main class="wrap">${body}</main>`;
+    return topBar(nav) + `<main class="wrap">${body}</main>` + bottomNav();
+  }
+
+  // Phones: app-style navigation along the bottom, with Add photos as the big middle button.
+  const ICONS = {
+    gallery: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1"/></svg>`,
+    students: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.8.3 5 2.7 5 5.8"/></svg>`,
+    teachers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M6.5 9.8V15c0 1.7 2.5 3.5 5.5 3.5s5.5-1.8 5.5-3.5V9.8"/><path d="M21 7.5V13"/></svg>`,
+    account: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3.2"/><path d="M6.5 18.5c1.3-2.2 3.2-3.3 5.5-3.3s4.2 1.1 5.5 3.3"/></svg>`,
+    add: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>`,
+  };
+  function bottomNav() {
+    const item = (k, label) => `<button class="bn-item" data-act="tab" data-tab="${k}" aria-current="${S.tab === k ? "page" : "false"}">${ICONS[k]}<span>${label}</span></button>`;
+    const add = `<button class="bn-add" data-act="tab" data-tab="upload" aria-current="${S.tab === "upload" ? "page" : "false"}" aria-label="Add photos"><span class="bn-circle">${ICONS.add}</span><span>Add photos</span></button>`;
+    const acct = `<button class="bn-item" data-act="account">${ICONS.account}<span>Account</span></button>`;
+    const items = isAdmin()
+      ? [item("gallery", "Gallery"), item("students", "Students"), add, item("teachers", "Teachers"), acct]
+      : [item("gallery", "Gallery"), add, acct];
+    return `<nav class="bottom-nav ${isAdmin() ? "five" : "three"}" aria-label="Main">${items.join("")}</nav>`;
   }
 
   function searchedStudents() {
@@ -815,6 +840,20 @@
   // ------------------------------------------------------------------
   // Modals
   // ------------------------------------------------------------------
+  // Keep the page behind a pop-up or the photo viewer still (works on iPhone too).
+  let lockedY = null;
+  function lockScroll() {
+    if (lockedY !== null) return;
+    lockedY = window.scrollY;
+    Object.assign(document.body.style, { position: "fixed", top: `-${lockedY}px`, left: "0", right: "0", width: "100%" });
+  }
+  function unlockScroll() {
+    if (lockedY === null || document.getElementById("overlay") || document.getElementById("lb")) return;
+    const y = lockedY; lockedY = null;
+    Object.assign(document.body.style, { position: "", top: "", left: "", right: "", width: "" });
+    window.scrollTo(0, y);
+  }
+
   function modal(html, { wide } = {}) {
     closeModal(false);
     const o = document.createElement("div");
@@ -824,7 +863,8 @@
     document.body.appendChild(o);
     o.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closeModal));
     wireSuggest(o);
-    o.querySelector("input,select,textarea,button")?.focus();
+    lockScroll();
+    o.querySelector("input,select,textarea,button")?.focus({ preventScroll: true });
     return o;
   }
   // Phones: keep the open window above the on-screen keyboard, and scroll the
@@ -851,6 +891,7 @@
     if (!o) return;
     o.remove();
     if (redraw && S.me) render();
+    if (redraw) unlockScroll();
   }
   function showErr(o, sel, msg) { const e = o.querySelector(sel); e.textContent = msg; e.hidden = false; }
 
@@ -1031,35 +1072,83 @@
   }
 
   // ---------- Account: everyone can change their own Login ID and PIN/password ----------
-  function openAccount() {
+  // Phones: a short sheet that sits above the bottom bar. Laptops: a small menu under the Account button.
+  // Each change then opens on its own, with only Cancel and Save.
+  const isPhone = () => matchMedia("(max-width: 640px), (pointer: coarse) and (max-width: 900px)").matches;
+  const ACCT_ICONS = {
+    id: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M5.8 16c.6-1.5 1.8-2.3 3.2-2.3s2.6.8 3.2 2.3M14.5 10h4M14.5 13.5h3"/></svg>`,
+    key: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>`,
+    out: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4M6 12h10"/></svg>`,
+  };
+  function acctMenuHtml() {
+    const me = S.me;
+    const word = me.role === "parent" ? "PIN" : "password";
+    return `<div class="acct-who">${blob(me.display_name, me.id, "lg")}<div><b>${esc(me.display_name)}</b><p class="muted small">${{ admin: "Admin", teacher: "Teacher", parent: "Parent" }[me.role]} · Login ID <span class="mono">${esc(me.login_id)}</span></p></div></div>
+      <div class="acct-menu">
+        <button type="button" class="acct-row" data-acct="id">${ACCT_ICONS.id}<span>Change Login ID</span><span aria-hidden="true">›</span></button>
+        <button type="button" class="acct-row" data-acct="pw">${ACCT_ICONS.key}<span>Change ${word}</span><span aria-hidden="true">›</span></button>
+        <button type="button" class="acct-row danger" data-acct="out">${ACCT_ICONS.out}<span>Log out</span></button>
+      </div>`;
+  }
+  function wireAcctMenu(root, close) {
+    root.querySelector('[data-acct="id"]').addEventListener("click", () => { close(); openChangeLogin(); });
+    root.querySelector('[data-acct="pw"]').addEventListener("click", () => { close(); openChangeSecret(); });
+    root.querySelector('[data-acct="out"]').addEventListener("click", () => { close(); closeModal(false); unlockScroll(); actions.logout(); });
+  }
+  function openAccount(anchor) {
+    if (closeAcctDrop()) return;                       // second click on Account closes the menu
+    if (!isPhone()) return openAcctDrop(anchor);
+    if (document.getElementById("overlay")?.classList.contains("acct-sheet")) { closeModal(); return; }
+    const o = modal(`<div class="modal-head"><h2>Account</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>${acctMenuHtml()}`);
+    o.classList.add("acct-sheet");
+    const nav = document.querySelector(".bottom-nav");
+    o.style.setProperty("--bn-h", `${nav ? nav.offsetHeight : 0}px`);
+    document.querySelectorAll('.bottom-nav [data-act="account"]').forEach((b) => b.setAttribute("aria-current", "page"));
+    wireAcctMenu(o, () => {});
+  }
+  // Laptop: drop-down menu under the Account button
+  function openAcctDrop(anchor) {
+    const btn = anchor || document.querySelector('.bar [data-act="account"]');
+    const d = document.createElement("div");
+    d.className = "acct-drop"; d.id = "acctDrop"; d.setAttribute("role", "menu");
+    d.innerHTML = acctMenuHtml();
+    document.body.appendChild(d);
+    const r = btn.getBoundingClientRect();
+    d.style.top = `${r.bottom + 8}px`;
+    d.style.right = `${Math.max(12, document.documentElement.clientWidth - r.right)}px`;
+    btn.setAttribute("aria-expanded", "true");
+    wireAcctMenu(d, closeAcctDrop);
+    setTimeout(() => document.addEventListener("click", acctOutside), 0);
+    d.querySelector(".acct-row").focus();
+  }
+  function acctOutside(e) { if (!e.target.closest("#acctDrop") && !e.target.closest('[data-act="account"]')) closeAcctDrop(); }
+  function closeAcctDrop() {
+    const d = document.getElementById("acctDrop");
+    if (!d) return false;
+    d.remove();
+    document.removeEventListener("click", acctOutside);
+    document.querySelectorAll('[data-act="account"]').forEach((b) => b.removeAttribute("aria-expanded"));
+    return true;
+  }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAcctDrop(); });
+  window.addEventListener("resize", closeAcctDrop);
+  // Cancel in a change window: back to the Account sheet on phones, just close on laptops
+  const backToAccount = () => (isPhone() ? openAccount() : closeModal());
+
+  function openChangeLogin() {
     const me = S.me;
     const parent = me.role === "parent";
     const word = parent ? "PIN" : "password";
     const num = parent ? 'inputmode="numeric" maxlength="6" pattern="[0-9]*"' : "";
-    const o = modal(`<div class="modal-head"><h2>Account</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
-      <div class="acct-who">${blob(me.display_name, me.id, "lg")}<div><b>${esc(me.display_name)}</b><p class="muted small">${{ admin: "Admin", teacher: "Teacher", parent: "Parent" }[me.role]} · Login ID <span class="mono">${esc(me.login_id)}</span></p></div></div>
-
-      <details class="acct-sec" id="secId"><summary>Change Login ID</summary>
-        <div class="acct-body">
-          <label class="field"><span>New Login ID</span><input class="input code" id="aId" placeholder="e.g. ${esc(suggestId(me.display_name) || "SASHA")}" autocapitalize="characters"><small>Letters and numbers only. Your ${word} stays the same.</small></label>
-          <label class="field"><span>Current ${word}</span><input class="input" id="aIdPw" type="password" autocomplete="current-password" ${num}><small>To confirm it's you.</small></label>
-          <p class="form-error" id="aIdErr" hidden></p>
-          <button class="btn block" id="aIdSave">Change Login ID</button>
-        </div></details>
-
-      <details class="acct-sec" id="secPw"><summary>Change ${word}</summary>
-        <div class="acct-body">
-          <label class="field"><span>Current ${word}</span><input class="input" id="aOld" type="password" autocomplete="current-password" ${num}></label>
-          <label class="field"><span>New ${parent ? "6-digit PIN" : "password"}</span><input class="input" id="aNew" type="password" autocomplete="new-password" ${num}><small>${parent ? "Avoid repeated digits and runs like 123456." : "At least 8 characters."}</small></label>
-          <label class="field"><span>Type it again</span><input class="input" id="aNew2" type="password" autocomplete="new-password" ${num}></label>
-          <p class="form-error" id="aPwErr" hidden></p>
-          <button class="btn block" id="aPwSave">Change ${word}</button>
-        </div></details>
-
-      <div class="modal-actions"><button class="btn danger-ghost" data-act-logout>Log out</button><button class="btn" data-close>Done</button></div>`);
-    o.querySelectorAll("details").forEach((d) => d.addEventListener("toggle", () => { if (d.open) { o.querySelectorAll("details").forEach((x) => { if (x !== d) x.open = false; }); d.querySelector("input")?.focus(); } }));
+    const o = modal(`<div class="modal-head"><h2>Change Login ID</h2><button class="icon-btn" id="aBackX" aria-label="Back to Account">×</button></div>
+      <p class="muted small">Your current Login ID is <b class="mono">${esc(me.login_id)}</b>.</p>
+      <label class="field"><span>New Login ID</span><input class="input code" id="aId" placeholder="e.g. ${esc(suggestId(me.display_name) || "SASHA")}" autocapitalize="characters"><small>Letters and numbers only. Your ${word} stays the same.</small></label>
+      <label class="field"><span>Current ${word}</span><input class="input" id="aIdPw" type="password" autocomplete="current-password" ${num}><small>To confirm it's you.</small></label>
+      <p class="form-error" id="aIdErr" hidden></p>
+      <div class="modal-actions"><button class="btn ghost" id="aBack">Cancel</button><button class="btn" id="aIdSave">Change Login ID</button></div>`);
+    o.querySelector("#aBack").addEventListener("click", backToAccount);
+    o.querySelector("#aBackX").addEventListener("click", backToAccount);
     o.querySelector("#aId").addEventListener("input", (e) => { e.target.value = cleanId(e.target.value); });
-    o.querySelector("[data-act-logout]").addEventListener("click", () => { closeModal(false); actions.logout(); });
     o.querySelector("#aIdSave").addEventListener("click", async (e) => {
       const newId = cleanId(o.querySelector("#aId").value), pw = o.querySelector("#aIdPw").value.trim();
       if (!newId) return showErr(o, "#aIdErr", "Please enter a new Login ID.");
@@ -1073,6 +1162,20 @@
         toast(`Your Login ID is now ${loginId}`);
       } catch (x) { showErr(o, "#aIdErr", x.message); e.target.disabled = false; e.target.textContent = "Change Login ID"; }
     });
+  }
+
+  function openChangeSecret() {
+    const parent = S.me.role === "parent";
+    const word = parent ? "PIN" : "password";
+    const num = parent ? 'inputmode="numeric" maxlength="6" pattern="[0-9]*"' : "";
+    const o = modal(`<div class="modal-head"><h2>Change ${word}</h2><button class="icon-btn" id="aBackX" aria-label="Back to Account">×</button></div>
+      <label class="field"><span>Current ${word}</span><input class="input" id="aOld" type="password" autocomplete="current-password" ${num}></label>
+      <label class="field"><span>New ${parent ? "6-digit PIN" : "password"}</span><input class="input" id="aNew" type="password" autocomplete="new-password" ${num}><small>${parent ? "Avoid repeated digits and runs like 123456." : "At least 8 characters."}</small></label>
+      <label class="field"><span>Type it again</span><input class="input" id="aNew2" type="password" autocomplete="new-password" ${num}></label>
+      <p class="form-error" id="aPwErr" hidden></p>
+      <div class="modal-actions"><button class="btn ghost" id="aBack">Cancel</button><button class="btn" id="aPwSave">Change ${word}</button></div>`);
+    o.querySelector("#aBack").addEventListener("click", backToAccount);
+    o.querySelector("#aBackX").addEventListener("click", backToAccount);
     o.querySelector("#aPwSave").addEventListener("click", async (e) => {
       const old = o.querySelector("#aOld").value.trim(), a = o.querySelector("#aNew").value, b = o.querySelector("#aNew2").value;
       if (!old) return showErr(o, "#aPwErr", `Please enter your current ${word}.`);
@@ -1165,8 +1268,8 @@
 
   // ---------- lightbox ----------
   let LB = null;
-  function openLightbox(list, index) { LB = { list, index, confirmDelete: false }; drawLightbox(); document.addEventListener("keydown", lbKeys); }
-  function closeLightbox() { document.getElementById("lb")?.remove(); document.removeEventListener("keydown", lbKeys); LB = null; }
+  function openLightbox(list, index) { LB = { list, index, confirmDelete: false }; lockScroll(); drawLightbox(); document.addEventListener("keydown", lbKeys); }
+  function closeLightbox() { document.getElementById("lb")?.remove(); document.removeEventListener("keydown", lbKeys); LB = null; unlockScroll(); }
   function lbKeys(e) { if (!LB || document.getElementById("overlay")) return; if (e.key === "Escape") closeLightbox(); if (e.key === "ArrowLeft") lbMove(-1); if (e.key === "ArrowRight") lbMove(1); }
   function lbMove(d) { if (!LB) return; LB.index = (LB.index + d + LB.list.length) % LB.list.length; LB.confirmDelete = false; drawLightbox(); }
   async function drawLightbox() {
@@ -1279,6 +1382,7 @@
     "to-login"() { S.screen = "login"; S.error = ""; S.pending = null; if (location.hash === "#setup") history.replaceState(null, "", location.pathname); render(); },
     tab(el) { S.tab = el.dataset.tab; S.search = ""; S.selecting = false; S.selected.clear(); render(); if (S.tab !== "upload") refresh(); },
     kid(el) { S.kid = el.dataset.id; render(); },
+    "to-top"() { window.scrollTo({ top: 0, behavior: "smooth" }); },
     "view-kid"(el) { S.kid = el.dataset.id; S.tab = "gallery"; S.selecting = false; S.selected.clear(); render(); window.scrollTo(0, 0); },
     tag(el) { const id = el.dataset.id; S.tagged.has(id) ? S.tagged.delete(id) : S.tagged.add(id); render(); },
     "clear-tags"() { S.tagged.clear(); render(); },
@@ -1367,7 +1471,7 @@
       } catch (x) { fail(x); }
     },
     "edit-login": (el) => openEditLogin(el.dataset.id),
-    account: () => openAccount(),
+    account: (el) => openAccount(el),
     async "toggle-active"(el) {
       const p = S.logins.find((l) => l.id === el.dataset.id);
       try { await api.updateProfile(p.id, { active: !p.active }); await refresh(); toast(p.active ? `${p.login_id} can't log in now` : `${p.login_id} can log in again`); } catch (x) { fail(x); }
@@ -1391,6 +1495,7 @@
     const el = e.target.closest("[data-act]");
     if (!el || el.disabled) return;
     const fn = actions[el.dataset.act];
+    if (el.closest(".bottom-nav") && el.dataset.act !== "account" && document.getElementById("overlay")?.classList.contains("acct-sheet")) closeModal(false), unlockScroll();
     if (fn) { e.preventDefault(); fn(el, e); }
   });
 
