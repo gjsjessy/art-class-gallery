@@ -26,7 +26,9 @@
 
 ## Why it exists
 
-Parents love seeing what their children make in class, but photos used to be sent through group chats. That meant every family's phone filled up with pictures of other people's children, and there was no simple way to find your own child's work later. This app gives each family a private gallery of just their children, keeps photos only as long as they're useful, and gives the studio one place to manage it all.
+Parents love seeing what their children make in class, but until now they had no way to see the photos teachers take during lessons. Most of the time parents aren't there during class to take photos themselves.
+
+This platform brings those moments home. Parents can save lovely memories of their children and feel part of what they go through in class: their process, their progress and how they grow as young artists.
 
 ## Who it's for
 
