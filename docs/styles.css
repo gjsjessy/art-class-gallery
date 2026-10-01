@@ -595,3 +595,11 @@ select.input {
   .overlay.acct-sheet .modal { border-radius: 20px 20px 0 0; padding-bottom: 16px; box-shadow: 0 -8px 24px rgba(0, 0, 0, .12); }
 }
 .acct-row.danger span:last-child { font-size: inherit; color: inherit; line-height: inherit; }
+
+/* ---------- version 21: clear the red Add photos circle on phones ---------- */
+@media (max-width: 640px), (pointer: coarse) and (max-width: 900px) {
+  .overlay.acct-sheet .modal { padding-bottom: 48px; }
+  .selbar { bottom: calc(var(--bn-clear, 112px) + env(safe-area-inset-bottom, 0px)) !important; }
+  .wrap:has(.selbar) { padding-bottom: calc(230px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+}
