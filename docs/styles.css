@@ -470,3 +470,33 @@ input, select, textarea { font-size: max(16px, 1em); }   /* stops iPhones zoomin
 .same-all { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .note-fields { display: grid; gap: 12px; }
 .note-fields .field > span { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- version 11: sharper photo corners ---------- */
+.thumb, .preview, .cam-strip img, .lb-stage img, .thumb.on { border-radius: 2px; }
+
+/* ---------- version 12: "Modern atelier" type — Jost headings + Inter text ---------- */
+:root {
+  --display: "Jost", "Futura", "Avenir Next", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+h1, h2, h3 { font-weight: 500; letter-spacing: .1em; }
+h1 { letter-spacing: .14em; }
+.wm { font-weight: 500; letter-spacing: .14em; font-size: 1.15rem; }
+.wm small { letter-spacing: .32em; }
+.tab { letter-spacing: .1em; font-weight: 500; }
+.blob { font-family: var(--body); font-weight: 600; }
+/* IDs and codes: Inter with a plain round zero instead of a monospace slashed zero */
+.input.code, .mono, .slip-val, .demo-first code { font-family: var(--body); font-variant-numeric: tabular-nums; }
+.input.code { letter-spacing: .12em; font-weight: 500; }
+.slip-val { letter-spacing: .08em; }
+
+/* ---------- version 13: titles in Oswald (matches the logo), medium weight ---------- */
+:root { --display: "Oswald", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif; }
+h1, h2, h3 { font-weight: 500; letter-spacing: .02em; }
+h1 { letter-spacing: .02em; }
+.wm { font-weight: 500; letter-spacing: .03em; font-size: 1.3rem; }
+.wm small { letter-spacing: .2em; }
+.tab { font-weight: 500; letter-spacing: .04em; }
+.brand, .tagline, .step-n { font-weight: 500; }
+.tagline { letter-spacing: .12em; }
+.label { letter-spacing: .12em; }
