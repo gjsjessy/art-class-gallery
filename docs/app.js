@@ -796,6 +796,8 @@
     return p.secret_set ? `<span class="chip ok">Active</span>` : `<span class="chip warn">Waiting for first login</span>`;
   }
 
+  const PEN = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>`;
+  const DOTS = `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>`;
   function viewStudents() {
     const q = S.search.trim().toLowerCase();
     const parents = S.logins.filter((l) => l.role === "parent").map((p) => ({ ...p, kids: S.students.filter((s) => s.parent_id === p.id) }))
@@ -807,30 +809,34 @@
         <div class="family-head">
           <div class="name"><p class="label">Parent login</p><b>${esc(p.display_name)}</b>
             <div class="sub"><span class="mono">${esc(p.login_id)}</span>${statusChip(p)}</div></div>
-          <div class="ctrls">
+          ${moreBtn(p)}
+          <div class="ctrls desk-only">
             <button class="btn ghost sm" data-act="edit-login" data-id="${p.id}">Edit</button>
             <button class="btn ghost sm" data-act="reset" data-id="${p.id}">New code</button>
             <button class="btn ghost sm" data-act="toggle-active" data-id="${p.id}">${p.active ? "Turn off" : "Turn on"}</button>
             <button class="btn danger-ghost sm" data-act="remove-login" data-id="${p.id}">Remove</button>
           </div>
         </div>
-        ${p.kids.map((s) => `<div class="row">
+        ${p.kids.map((s) => `<div class="row kid-row">
           ${blob(s.full_name, s.id)}
           <div class="name"><b>${esc(s.full_name)}</b><div class="sub"><span>${plural(count(s.id), "photo")}</span>${s.consent ? "" : `<span class="chip danger">No photo consent</span>`}</div></div>
-          <div class="ctrls"><button class="btn soft sm" data-act="view-kid" data-id="${s.id}">View photos</button><button class="btn ghost sm" data-act="edit-child" data-id="${s.id}">Edit</button></div>
+          <div class="ctrls"><button class="btn ghost sm icon-only" data-act="edit-child" data-id="${s.id}" aria-label="Edit ${esc(s.full_name)}">${PEN}<span class="lbl">Edit</span></button><button class="btn soft sm" data-act="view-kid" data-id="${s.id}">View photos</button></div>
         </div>`).join("")}
         <div class="family-foot"><button class="linkish" data-act="add-child" data-id="${p.id}">+ Add another child to this login</button></div>
       </section>`).join("") : `<div class="empty"><h2>${S.logins.some((l) => l.role === "parent") ? "No matches" : "No families yet"}</h2><p>Add a family to create a parent login with one or more children.</p></div>`}`;
   }
 
+  // Phones: one "more" button instead of a row of buttons
+  const moreBtn = (p) => `<button class="icon-btn more-btn phone-only" data-act="more" data-id="${p.id}" aria-label="More options for ${esc(p.display_name)}">${DOTS}</button>`;
+
   function viewTeachers() {
     const staff = S.logins.filter((l) => l.role !== "parent");
     return `<div class="section-head"><h1>Teachers</h1><button class="btn" data-act="add-staff">Add teacher</button></div>
-      <div class="list">${staff.map((t) => `<div class="row">
+      <div class="list">${staff.map((t) => `<div class="row kid-row">
         ${blob(t.display_name, t.id)}
         <div class="name"><b>${esc(t.display_name)}${t.id === S.me.id ? " (you)" : ""}</b>
           <div class="sub"><span class="chip ${t.role === "admin" ? "accent" : ""}">${t.role === "admin" ? "Admin" : "Teacher"}</span><span class="mono">${esc(t.login_id)}</span>${statusChip(t)}</div></div>
-        <div class="ctrls"><button class="btn ghost sm" data-act="edit-login" data-id="${t.id}">Edit</button>${t.id !== S.me.id ? `<button class="btn ghost sm" data-act="reset" data-id="${t.id}">New code</button>
+        ${moreBtn(t)}<div class="ctrls desk-only"><button class="btn ghost sm" data-act="edit-login" data-id="${t.id}">Edit</button>${t.id !== S.me.id ? `<button class="btn ghost sm" data-act="reset" data-id="${t.id}">New code</button>
           <button class="btn ghost sm" data-act="toggle-active" data-id="${t.id}">${t.active ? "Turn off" : "Turn on"}</button>
           <button class="btn danger-ghost sm" data-act="remove-login" data-id="${t.id}">Remove</button>` : ""}</div>
       </div>`).join("")}</div>
@@ -1471,6 +1477,30 @@
       } catch (x) { fail(x); }
     },
     "edit-login": (el) => openEditLogin(el.dataset.id),
+    more(el) {
+      const p = S.logins.find((l) => l.id === el.dataset.id);
+      if (!p) return;
+      const self = p.id === S.me.id;
+      const row = (act, label, icon, cls = "") => `<button type="button" class="acct-row plain ${cls}" data-more="${act}">${icon}<span>${label}</span></button>`;
+      const I = {
+        edit: PEN,
+        code: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2 2M15 8l2 2"/></svg>`,
+        power: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.3 7a8 8 0 1 0 11.4 0"/></svg>`,
+        bin: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>`,
+      };
+      const o = modal(`<div class="modal-head"><div><p class="label">${p.role === "parent" ? "Parent login" : p.role === "admin" ? "Admin" : "Teacher"}</p><h2>${esc(p.display_name)}</h2></div><button class="icon-btn" data-close aria-label="Close">×</button></div>
+        <div class="acct-menu">
+          ${row("edit-login", "Edit name or Login ID", I.edit)}
+          ${self ? "" : row("reset", "Make a new one-time code", I.code)}
+          ${self ? "" : row("toggle-active", p.active ? "Turn off login" : "Turn on login", I.power)}
+          ${self ? "" : row("remove-login", "Remove", I.bin, "danger")}
+        </div>`);
+      o.querySelectorAll("[data-more]").forEach((b) => b.addEventListener("click", async () => {
+        closeModal(false);
+        await actions[b.dataset.more]({ dataset: { id: p.id } });
+        unlockScroll();
+      }));
+    },
     account: (el) => openAccount(el),
     async "toggle-active"(el) {
       const p = S.logins.find((l) => l.id === el.dataset.id);
