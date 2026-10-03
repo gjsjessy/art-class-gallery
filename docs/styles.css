@@ -632,3 +632,12 @@ select.input {
   .row.kid-row > .blob { width: 36px; height: 36px; font-size: .8rem; }
   .row.kid-row .sub span { white-space: nowrap; }
 }
+
+/* ---------- version 24: Take photo + Choose from gallery on phones ---------- */
+.drop-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 6px; }
+.drop-btns .btn { min-height: 48px; padding: 0 10px; gap: 6px; white-space: normal; text-align: center; line-height: 1.2; }
+.drop-btns .btn svg { width: 20px; height: 20px; flex: none; color: currentColor; }
+div.drop { cursor: default; }
+@media (max-width: 340px) { .drop-btns { grid-template-columns: 1fr; } }
+.drop-btns .btn { white-space: nowrap; }
+@media (max-width: 480px) { .drop-btns { grid-template-columns: 1fr; max-width: 320px; margin-inline: auto; } }

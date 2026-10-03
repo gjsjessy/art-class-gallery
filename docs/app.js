@@ -76,22 +76,44 @@
     return "";
   }
 
-  // Resize a photo in the browser before upload: sharp on phones, small on storage.
-  async function prepareImage(file) {
-    let src;
-    try { src = await createImageBitmap(file, { imageOrientation: "from-image" }); }
-    catch (_) {
-      src = await new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = () => rej(new Error(`${file.name} isn't a photo this browser can open.`)); img.src = URL.createObjectURL(file); });
+  // Resize a photo in the browser as soon as it's picked: sharp on phones, small on storage.
+  // The photo is copied into memory straight away, because phones can stop letting a web page
+  // read a picked photo a little later. Memory is released after each photo so many photos in a row work.
+  const isHeic = (f) => /hei[cf]/i.test(f.type || "") || /\.(heic|heif)$/i.test(f.name || "");
+  async function decode(blob) {
+    if (window.createImageBitmap) {
+      try { return await createImageBitmap(blob, { imageOrientation: "from-image" }); } catch (_) { /* try the other way */ }
     }
+    const url = URL.createObjectURL(blob);
+    try {
+      return await new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = url; });
+    } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  }
+  async function prepareImage(file) {
+    const label = file.name || "This photo";
+    let blob;
+    try { blob = new Blob([await file.arrayBuffer()], { type: file.type || "image/jpeg" }); }
+    catch (_) { throw new Error(`${label} couldn't be read. Please choose it again.`); }
+    let src;
+    for (let attempt = 0; attempt < 2 && !src; attempt++) {
+      try { src = await decode(blob); } catch (_) { if (!attempt) await sleep(300); }
+    }
+    if (!src) throw new Error(isHeic(file)
+      ? `${label} is in HEIC format, which this browser can't open. On Samsung, turn off Camera settings → "High efficiency pictures", or pick a JPG.`
+      : `${label} couldn't be opened. Please try choosing it again.`);
+    const w0 = src.width || src.naturalWidth, h0 = src.height || src.naturalHeight;
     const toJpeg = (max, q) => {
-      const w0 = src.width || src.naturalWidth, h0 = src.height || src.naturalHeight;
       const s = Math.min(1, max / Math.max(w0, h0));
       const c = document.createElement("canvas");
       c.width = Math.round(w0 * s); c.height = Math.round(h0 * s);
       const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high"; ctx.drawImage(src, 0, 0, c.width, c.height);
-      return new Promise((r) => c.toBlob(r, "image/jpeg", q));
+      return new Promise((r) => c.toBlob((out) => { c.width = c.height = 0; r(out); }, "image/jpeg", q));
     };
-    return { full: await toJpeg(1600, 0.82), thumb: await toJpeg(480, 0.72) };
+    try {
+      const full = await toJpeg(1600, 0.82), thumb = await toJpeg(480, 0.72);
+      if (!full || !thumb) throw new Error(`${label} couldn't be prepared. Please try again.`);
+      return { full, thumb };
+    } finally { src.close?.(); }
   }
 
   // ------------------------------------------------------------------
@@ -177,7 +199,7 @@
       },
       async upload({ date, files, studentIds, me, onProgress }) {
         for (let i = 0; i < files.length; i++) {
-          const { full, thumb } = await prepareImage(files[i]);
+          const { full, thumb } = files[i].full ? files[i] : await prepareImage(files[i]);
           const id = crypto.randomUUID();
           const row = { id, path: `${date}/${id}.jpg`, thumb_path: `${date}/${id}_t.jpg`, taken_on: date, uploaded_by: me.id };
           must(await sb.from("photos").insert(row));
@@ -414,7 +436,7 @@
       async saveNotes(date, entries) { await sleep(150); entries.forEach((e) => { const k = `${date}|${e.student_id}`; if (e.note) notes[k] = e.note; else delete notes[k]; }); },
       async upload({ date, files, studentIds, onProgress }) {
         for (let i = 0; i < files.length; i++) {
-          const { full, thumb } = await prepareImage(files[i]);
+          const { full, thumb } = files[i].full ? files[i] : await prepareImage(files[i]);
           photos.unshift({ id: "up" + seq++, path: "demo", thumb_path: "demo", taken_on: date, uploaded_by: session.id, created_at: new Date().toISOString(), students: [...studentIds], thumbUrl: URL.createObjectURL(thumb), _url: URL.createObjectURL(full) });
           await sleep(250); onProgress?.(i + 1);
         }
@@ -513,6 +535,7 @@
     upNote: "",
     noteTouched: false,
     progress: null,
+    preparing: 0,             // photos still being resized after picking
     selecting: false,         // gallery: choosing photos for bulk delete / download
     selected: new Set(),
   };
@@ -615,6 +638,7 @@
   }
   const isTouch = () => matchMedia("(pointer: coarse)").matches || (navigator.maxTouchPoints > 1 && /Mac|iPad/.test(navigator.platform));
   const CAM_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>`;
+  const GALLERY_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>`;
   const canManage = (p) => isStaff() && (isAdmin() || p.uploaded_by === S.me.id);
   const noteOf = (date, sid) => S.notes[`${date}|${sid}`] || "";
   // Children shown for a date (respecting the child filter), with their descriptions.
@@ -746,11 +770,19 @@
 
       <section class="step">
         <div class="step-title"><span class="step-n">2</span><h2>Add photos</h2></div>
-        <label class="drop" id="drop" for="fileInput">${CAM_ICON}
-          <b>${isTouch() ? "Tap to take or choose photos" : "Click to choose photos, or drop them here"}</b>
-          <span class="small">${isTouch() ? "Your phone asks whether to use the camera, your photo library or files." : "Drag photos from your computer into this box."}</span>
-        </label>
+        ${isTouch() ? `<div class="drop" id="drop">${CAM_ICON}
+          <b>Add photos</b>
+          <div class="drop-btns">
+            <label class="btn" for="camInput">${CAM_ICON}Take photo</label>
+            <label class="btn soft" for="fileInput">${GALLERY_ICON}Choose from gallery</label>
+          </div>
+        </div>` : `<label class="drop" id="drop" for="fileInput">${CAM_ICON}
+          <b>Click to choose photos, or drop them here</b>
+          <span class="small">Drag photos from your computer into this box.</span>
+        </label>`}
+        <input type="file" id="camInput" accept="image/*" capture="environment" class="vh">
         <input type="file" id="fileInput" accept="image/*" multiple class="vh">
+        ${S.preparing ? `<p class="small muted tnum">Getting ${plural(S.preparing, "photo")} ready…</p>` : ""}
         ${nFiles ? `<div class="previews">${S.files.map((f, i) => `<div class="preview"><img src="${f.url}" alt="Photo ${i + 1}"><button type="button" data-act="unfile" data-i="${i}" aria-label="Remove photo ${i + 1}">×</button></div>`).join("")}</div>` : ""}
       </section>
 
@@ -764,7 +796,7 @@
       </section>
 
       ${S.progress ? `<div class="progress" aria-label="Uploading"><i style="width:${Math.round((S.progress.done / S.progress.total) * 100)}%"></i></div><p class="small muted tnum">Uploading ${S.progress.done} of ${S.progress.total}…</p>` : ""}
-      <button class="btn big block" data-act="upload" ${chosen.length && nFiles && !S.progress ? "" : "disabled"}>${nFiles && chosen.length ? `Upload ${plural(nFiles, "photo")} for ${esc(who)}` : !chosen.length ? "Pick at least one child" : "Add at least one photo"}</button>`;
+      <button class="btn big block" data-act="upload" ${chosen.length && nFiles && !S.progress && !S.preparing ? "" : "disabled"}>${S.preparing ? "Getting photos ready…" : nFiles && chosen.length ? `Upload ${plural(nFiles, "photo")} for ${esc(who)}` : !chosen.length ? "Pick at least one child" : "Add at least one photo"}</button>`;
   }
 
   function viewGallery() {
@@ -1394,7 +1426,7 @@
     "clear-tags"() { S.tagged.clear(); render(); },
     unfile(el) { const f = S.files.splice(Number(el.dataset.i), 1)[0]; URL.revokeObjectURL(f.url); render(); },
     async upload() {
-      const files = S.files.map((f) => f.file), ids = [...S.tagged], date = S.upDate, note = S.upNote.trim(), touched = S.noteTouched;
+      const files = S.files.map((f) => ({ full: f.full, thumb: f.thumb })), ids = [...S.tagged], date = S.upDate, note = S.upNote.trim(), touched = S.noteTouched;
       S.progress = { done: 0, total: files.length }; render();
       try {
         const changed = ids.filter((id) => (note || touched) && noteOf(date, id) !== note);
@@ -1531,7 +1563,7 @@
 
   $app.addEventListener("change", (e) => {
     const el = e.target;
-    if (el.id === "fileInput") { addFiles(el.files); el.value = ""; }
+    if (el.id === "fileInput" || el.id === "camInput") { addFiles([...el.files]); el.value = ""; }
     if (el.id === "upDate") {
       S.upDate = el.value || today();
       if (!S.upNote) S.noteTouched = false;
@@ -1551,11 +1583,19 @@
     if (el.id === "suId") { el.dataset.touched = "1"; el.value = cleanId(el.value); }
   });
 
-  function addFiles(list) {
-    const imgs = [...list].filter((f) => f.type.startsWith("image/") || /\.(jpe?g|png|heic|webp)$/i.test(f.name));
+  async function addFiles(list) {
+    const imgs = [...list].filter((f) => (f.type || "").startsWith("image/") || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name || ""));
     if (!imgs.length) { toast("Those files aren't photos.", "err"); return; }
-    imgs.forEach((f) => S.files.push({ file: f, url: URL.createObjectURL(f) }));
-    render();
+    S.preparing += imgs.length; render();
+    const problems = [];
+    for (const f of imgs) {
+      try {
+        const { full, thumb } = await prepareImage(f);
+        S.files.push({ full, thumb, url: URL.createObjectURL(thumb) });
+      } catch (x) { problems.push(x.message); }
+      S.preparing--; render();
+    }
+    if (problems.length) toast(problems.length === 1 ? problems[0] : `${plural(problems.length, "photo")} couldn't be opened. ${problems[0]}`, "err");
   }
 
   $app.addEventListener("submit", async (e) => {
