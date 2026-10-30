@@ -12,5 +12,5 @@ window.APP_CONFIG = {
 
   classes: ["Young", "Older"],       // class groups
   levels: ["Sparkle", "Jumble", "Plopping", "Artsy", "Starburst"],   // in order, first to last
-  keepDays: 90,                      // photos are removed this many days after the lesson
+  keepDays: 365,                      // photos are removed this many days after the lesson
 };
