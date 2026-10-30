@@ -21,7 +21,7 @@
 - **Teachers photograph the children's artwork during class** and tag the children in each photo, including group photos.
 - **Parents log in with a simple Login ID and PIN** to see and download only their own children's photos. One login covers every child in the family.
 - **Each child gets a short description** of what they worked on, so parents know the story behind the picture.
-- **Photos stay for 3 months**, then they're removed automatically to keep the children's pictures private.
+- **Photos stay for 1 year**, then they're removed automatically to keep the children's pictures private.
 - **It works on phones**: teachers take photos with the phone's own camera, and parents save straight to their photo library.
 
 ## Why it exists
@@ -50,7 +50,7 @@ A lightweight setup that runs entirely on free plans, with no servers to maintai
 | Database and access rules | Postgres with row-level security | Supabase |
 | Logins | Supabase Auth, behind a custom PIN layer with lockout | Supabase Edge Function (`api`) |
 | Photo storage | Private bucket, signed links that expire after 1 hour | Supabase Storage |
-| Daily cleanup | Removes photos older than 90 days, keeps the project active | GitHub Actions |
+| Daily cleanup | Removes photos older than 1 year (365 days), keeps the project active | GitHub Actions |
 
 ### Privacy by design
 - **Data access:** database rules, not just the app, ensure parents can only read their own children's data. In a group photo, a parent sees only their own child's name.
@@ -103,7 +103,7 @@ New teachers are added the same way under **Teachers**.
 | A new child joins an existing family | **Students** → find the family → **+ Add another child to this login** |
 
 ### Good to know
-- Photos and descriptions are removed automatically after **3 months**. Remind parents to download the ones they want to keep.
+- Photos and descriptions are removed automatically **1 year** after the lesson. Remind parents to download the ones they want to keep.
 - The cleanup runs every night at 3am Singapore time. GitHub emails you if it ever fails.
 - After updating `app.js` or `styles.css` on GitHub, raise the `?v=` number in `docs/index.html` so everyone gets the new version.
 
@@ -117,7 +117,7 @@ On the radar:
 
 ## Design and credits
 
-**Idea, product design and UX by Gabriela Jessica Susilo**, a UX/product designer who also teaches art at Sasha & Lulu Atelier. She shaped the concept from her own classroom experience: the roles and permissions, the parent experience, privacy decisions like per-family access and the 3-month retention, and every round of design feedback.
+**Idea, product design and UX by Gabriela Jessica Susilo**, a UX/product designer who also teaches art at Sasha & Lulu Atelier. She shaped the concept from her own classroom experience: the roles and permissions, the parent experience, privacy decisions like per-family access and the photo retention period, and every round of design feedback.
 
 **Built with [Claude Code](https://claude.com/claude-code)** (Anthropic), which wrote the code, database rules and server function from Jessica's direction and iterated on each change she reviewed.
 
