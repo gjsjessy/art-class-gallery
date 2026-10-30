@@ -1,5 +1,5 @@
 # Runs every day at 3am Singapore time: deletes photos older than
-# 3 months and keeps the free Supabase project awake.
+# 1 year (365 days) and keeps the free Supabase project awake.
 name: Daily cleanup
 
 on:
