@@ -874,7 +874,7 @@
           <button class="btn ghost sm" data-act="toggle-active" data-id="${t.id}">${t.active ? "Turn off" : "Turn on"}</button>
           <button class="btn danger-ghost sm" data-act="remove-login" data-id="${t.id}">Remove</button>` : ""}</div>
       </div>`).join("")}</div>
-      <p class="small muted">Teachers can upload, view and download every child's photos. Admins can also manage families and teachers.</p>`;
+      <p class="small muted">Teachers can upload, view and download every child's photos. Admins can also manage families and teachers. To switch someone between Teacher and Admin, use <b>Edit</b>.</p>`;
   }
 
   // ------------------------------------------------------------------
@@ -1038,6 +1038,14 @@
         ? `<div class="field"><span>Login ID</span><p class="mono" style="font-size:1.1rem">${esc(p.login_id)}</p><small>To change your own Login ID, use <b>Account</b> at the top of the page.</small></div>`
         : `<label class="field"><span>Login ID</span><input class="input code" id="lId" value="${esc(p.login_id)}" autocapitalize="characters">
             <small id="lIdNote">What they type to log in.</small></label>`}
+      ${p.role === "parent" ? "" : self
+        ? `<div class="field"><span>Role</span><p>${p.role === "admin" ? "Admin" : "Teacher"}</p><small>To change your own role, ask another admin.</small></div>`
+        : `<div class="field" role="radiogroup" aria-labelledby="lRoleLbl"><span id="lRoleLbl">Role</span>
+            <div class="role-pick">
+              <label class="role-opt"><input type="radio" name="lRole" value="teacher" ${p.role === "teacher" ? "checked" : ""}><span><b>Teacher</b><small>Uploads, tags and downloads every child's photos.</small></span></label>
+              <label class="role-opt"><input type="radio" name="lRole" value="admin" ${p.role === "admin" ? "checked" : ""}><span><b>Admin</b><small>Everything a teacher does, plus managing families, teachers and logins.</small></span></label>
+            </div>
+            <small>Their Login ID and password stay the same.</small></div>`}
       <p class="form-error" id="lErr" hidden></p>
       <div class="modal-actions"><button class="btn ghost" data-close>Cancel</button><button class="btn" id="lSave">Save</button></div>`);
     const idBox = o.querySelector("#lId");
@@ -1052,18 +1060,22 @@
     o.querySelector("#lSave").addEventListener("click", async (e) => {
       const name = o.querySelector("#lName").value.trim();
       const newId = idBox ? cleanId(idBox.value) : p.login_id;
+      const newRole = o.querySelector('input[name="lRole"]:checked')?.value || p.role;
       if (!name) return showErr(o, "#lErr", "Please enter a name.");
       if (idProblem(newId)) return showErr(o, "#lErr", idProblem(newId));
       e.target.disabled = true;
       try {
         if (name !== p.display_name) { await api.updateProfile(id, { display_name: name }); if (self) S.me.display_name = name; }
+        const roleChanged = !self && p.role !== "parent" && newRole !== p.role;
+        if (roleChanged) await api.updateProfile(id, { role: newRole });
         if (newId !== p.login_id) {
           const res = await api.changeLoginId(id, newId);
           await refresh();
           showSlip({ ...res, name, children: p.role === "parent" ? S.students.filter((s) => s.parent_id === id).map((s) => s.full_name) : [] }, p.role === "parent" ? "parent" : "staff");
           return;
         }
-        closeModal(); await refresh(); toast("Saved");
+        closeModal(); await refresh();
+        toast(roleChanged ? `${fullName(name)} is now ${newRole === "admin" ? "an admin" : "a teacher"}` : "Saved");
       } catch (x) { showErr(o, "#lErr", x.message); e.target.disabled = false; }
     });
   }
@@ -1524,7 +1536,7 @@
       };
       const o = modal(`<div class="modal-head"><div><p class="label">${p.role === "parent" ? "Parent login" : p.role === "admin" ? "Admin" : "Teacher"}</p><h2>${esc(p.display_name)}</h2></div><button class="icon-btn" data-close aria-label="Close">×</button></div>
         <div class="acct-menu">
-          ${row("edit-login", "Edit name or Login ID", I.edit)}
+          ${row("edit-login", p.role === "parent" || self ? "Edit name or Login ID" : "Edit name, Login ID or role", I.edit)}
           ${self ? "" : row("reset", "Make a new one-time code", I.code)}
           ${self ? "" : row("toggle-active", p.active ? "Turn off login" : "Turn on login", I.power)}
           ${self ? "" : row("remove-login", "Remove", I.bin, "danger")}
