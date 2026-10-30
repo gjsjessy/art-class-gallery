@@ -9,7 +9,9 @@
 (() => {
   "use strict";
 
-  const CFG = Object.assign({ studioName: "Art Studio", shortName: "", logo: "", keepDays: 90 }, window.APP_CONFIG || {});
+  const CFG = Object.assign({ studioName: "Art Studio", shortName: "", logo: "", keepDays: 365 }, window.APP_CONFIG || {});
+  // How long photos are kept, in plain words ("1 year", "3 months", "45 days").
+  const keepText = () => { const d = CFG.keepDays; return d % 365 === 0 ? (d === 365 ? "1 year" : `${d / 365} years`) : d % 30 === 0 || d === 90 ? `${Math.round(d / 30)} months` : `${d} days`; };
   const DEMO = !!window.APP_DEMO || !CFG.supabaseUrl || !CFG.supabaseKey;
   const $app = document.getElementById("app");
 
@@ -634,7 +636,7 @@
     const gone = addDays(date, CFG.keepDays);
     const left = daysBetween(today(), gone);
     if (left <= 14) return `<span class="chip warn">Removed on ${fmtShort(gone)}${left <= 1 ? " · download now" : ""}</span>`;
-    return `<span class="chip">Kept until ${fmtShort(addDays(gone, -1))}</span>`;
+    return `<span class="chip">Kept until ${fmtDay(addDays(gone, -1))}</span>`;
   }
   const isTouch = () => matchMedia("(pointer: coarse)").matches || (navigator.maxTouchPoints > 1 && /Mac|iPad/.test(navigator.platform));
   const CAM_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>`;
@@ -700,7 +702,7 @@
         <div><p class="label">Art Journey</p><h1>${esc(names || "Your children")}</h1></div>
       </section>
       ${kids.length > 1 ? kidChips() : ""}
-      <p class="keep-note"><span>Photos stay here for <b>3 months</b> after each lesson, then they're removed to keep your children's pictures private. ${soon ? `<b>${plural(soon, "photo")} will be removed in the next 2 weeks.</b>` : "Download the ones you want to keep."}</span></p>
+      <p class="keep-note"><span>Photos stay here for <b>${keepText()}</b> after each lesson, then they're removed to keep your children's pictures private. ${soon ? `<b>${plural(soon, "photo")} will be removed in the next 2 weeks.</b>` : "Download the ones you want to keep."}</span></p>
       ${lessonList(shown, { showNames: kids.length > 1 }) || `<div class="empty"><h2>No photos yet</h2><p>After the next lesson, the teacher's photos will appear here.</p></div>`}
     </main>` + parentNav();
   }
@@ -819,7 +821,7 @@
           <button class="btn danger sm" data-act="delete-selected" ${nSel ? "" : "disabled"}>Delete</button>
         </div>` : ""}
       ${S.kid !== "all" ? `<div class="child-card">${blob(kidName(S.kid), S.kid, "lg")}<div><p class="label">Photos of</p><h1>${esc(kidName(S.kid))}</h1></div></div>` : ""}
-      <p class="small muted">Photos are removed automatically ${CFG.keepDays} days after the lesson.</p>
+      <p class="small muted">Photos are kept for ${keepText()}, then removed automatically.</p>
       ${lessonList(galleryPhotos(), { showNames: true, editable: true }) || `<div class="empty"><h2>No photos${S.kid === "all" ? " yet" : ` of ${esc(fullName(kidName(S.kid)))} yet`}</h2><p>Upload photos in "Add photos".</p></div>`}`;
   }
 
@@ -1283,7 +1285,7 @@
     const until = fmtDay(isoOf(new Date(res.expiresAt)));
     const kids = res.children && res.children.length ? joinNames(res.children.map(fullName)) : "";
     const msg = kind === "parent"
-      ? `Hi ${fullName(res.name)}! Here's your login for ${kids ? `${kids}'s` : "your child's"} art class photos at ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own 6-digit PIN. Photos stay for 3 months after each lesson, so download the ones you love.`
+      ? `Hi ${fullName(res.name)}! Here's your login for ${kids ? `${kids}'s` : "your child's"} art class photos at ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own 6-digit PIN. Photos stay for ${keepText()} after each lesson, so download the ones you love.`
       : `Hi ${fullName(res.name)}! Here's your teacher login for ${CFG.studioName}.\n\nLink: ${appUrl()}\nLogin ID: ${res.loginId}\nOne-time code: ${fmtCode(res.code)} (use by ${until})\n\nThe first time you log in, you'll choose your own password.`;
     const o = modal(`<div class="modal-head"><h2>Login for ${esc(res.name)}</h2><button class="icon-btn" data-close aria-label="Close">×</button></div>
       <div class="slip">
